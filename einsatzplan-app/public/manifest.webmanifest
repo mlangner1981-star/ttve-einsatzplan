@@ -1,0 +1,25 @@
+{
+  "name": "TTV Einigkeit Süchteln-Vorst – Einsatzplan",
+  "short_name": "Einsatzplan",
+  "description": "Einsatz- und Verfügbarkeitsplaner für die Mannschaften des TTV Einigkeit Süchteln-Vorst",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fafaf9",
+  "theme_color": "#064e3b",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
