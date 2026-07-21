@@ -264,7 +264,11 @@ function computeMatchStatus(players, avail, requiredPlayers) {
     ersatz = no.join(", ");
   }
   const complete = open.length === 0 && unsicher.length === 0 && !warning;
-  return { no, yes, unsicher, open, ersatz, warning, complete };
+  // "filled": die Mannschaft ist einsatzbereit, sobald genug Spieler aktiv
+  // zugesagt haben (>= requiredPlayers) – unabhängig davon, ob der Rest des
+  // Kaders schon reagiert hat.
+  const filled = yes.length >= requiredPlayers;
+  return { no, yes, unsicher, open, ersatz, warning, complete, filled, requiredPlayers };
 }
 
 function pad(n) {
@@ -1202,10 +1206,14 @@ export default function Einsatzplan() {
                     </div>
                     <span
                       className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
-                        s.warning ? "bg-red-600 text-white" : s.complete ? "bg-emerald-600 text-white" : "bg-amber-500 text-white"
+                        s.warning ? "bg-red-600 text-white" : s.filled ? "bg-emerald-600 text-white" : "bg-amber-500 text-white"
                       }`}
                     >
-                      {s.warning ? "⚠️ Ersatz nötig" : s.complete ? "✅ Komplett" : `${fest}/${t.players.length} fest`}
+                      {s.warning
+                        ? "⚠️ Ersatz nötig"
+                        : s.filled
+                        ? `✅ Komplett (${s.yes.length}/${t.requiredPlayers})`
+                        : `${fest}/${t.players.length} fest`}
                     </span>
                   </button>
                 ))}
@@ -1367,7 +1375,7 @@ export default function Einsatzplan() {
           const avail = entry.availability || {};
           const players = team.players;
 
-          const { no, unsicher, open, ersatz, warning } = computeMatchStatus(players, avail, team.requiredPlayers);
+          const { no, unsicher, open, ersatz, warning, filled, yes } = computeMatchStatus(players, avail, team.requiredPlayers);
 
           const myStatus = me ? avail[me] : undefined;
           const isEditing = editingId === m.id;
@@ -1613,6 +1621,12 @@ export default function Einsatzplan() {
                   })}
                 </div>
 
+                {filled && (
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-900 rounded px-2.5 py-1.5 mb-2">
+                    <Check size={13} /> Mannschaft komplett ({yes.length}/{team.requiredPlayers} zugesagt)
+                  </div>
+                )}
+
                 {warning ? (
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded px-2.5 py-1.5">
                     <AlertTriangle size={13} /> {warning}
@@ -1765,12 +1779,16 @@ export default function Einsatzplan() {
                       className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
                         s.warning
                           ? "bg-red-600 text-white"
-                          : s.complete
+                          : s.filled
                           ? "bg-emerald-600 text-white"
                           : "bg-amber-500 text-white"
                       }`}
                     >
-                      {s.warning ? "⚠️ Zu wenig" : s.complete ? "✅ Komplett" : `${fest}/${team.players.length} fest`}
+                      {s.warning
+                        ? "⚠️ Zu wenig"
+                        : s.filled
+                        ? `✅ Komplett (${s.yes.length}/${team.requiredPlayers})`
+                        : `${fest}/${team.players.length} fest`}
                     </span>
                   </div>
 
