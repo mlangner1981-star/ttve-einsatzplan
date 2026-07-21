@@ -1047,16 +1047,6 @@ export default function Einsatzplan() {
               Meine Spiele
             </button>
             <button
-              onClick={() => setView("club")}
-              className={`text-[11px] font-bold py-1.5 rounded-md px-1 ${
-                view === "club"
-                  ? "bg-white dark:bg-stone-700 text-stone-800 dark:text-stone-100 shadow-sm"
-                  : "text-stone-500 dark:text-stone-400"
-              }`}
-            >
-              Verein
-            </button>
-            <button
               onClick={() => setView("cards")}
               className={`text-[11px] font-bold py-1.5 rounded-md px-1 truncate ${
                 view === "cards"
@@ -1075,6 +1065,16 @@ export default function Einsatzplan() {
               }`}
             >
               Gesamt
+            </button>
+            <button
+              onClick={() => setView("club")}
+              className={`text-[11px] font-bold py-1.5 rounded-md px-1 ${
+                view === "club"
+                  ? "bg-white dark:bg-stone-700 text-stone-800 dark:text-stone-100 shadow-sm"
+                  : "text-stone-500 dark:text-stone-400"
+              }`}
+            >
+              Verein
             </button>
           </div>
           <button
