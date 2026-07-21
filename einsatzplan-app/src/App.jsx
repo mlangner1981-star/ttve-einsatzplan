@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Check,
   X,
@@ -18,14 +18,15 @@ import {
   Sun,
   Moon,
   Shield,
-  LogOut,
   Lock,
+  LockOpen,
   Pencil,
   Trash2,
   Save,
   RefreshCw,
   Share2,
   ChevronDown,
+  ExternalLink,
 } from "lucide-react";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { getShared, setShared } from "./storage.js";
@@ -49,6 +50,8 @@ const TEAMS = [
     label: "1. Mannschaft",
     short: "1.",
     league: "Bezirksoberliga 3 (Niederrhein)",
+    tableUrl:
+      "https://www.mytischtennis.de/click-tt/WTTV/26--27/ligen/Bezirksoberliga_3_(Niederrhein)_Erwachsene/gruppe/522951/tabelle/gesamt",
     requiredPlayers: 6,
     players: [
       "Matthias Christen",
@@ -215,7 +218,32 @@ const STORAGE_PREFIX = "ttv-suechteln-vorst-einsatzplan-";
 const MATCHES_PREFIX = "ttv-suechteln-vorst-spielplan-";
 
 const emptyRoundData = (matches) =>
-  Object.fromEntries(matches.map((m) => [m.id, { availability: {}, notiz: "" }]));
+  Object.fromEntries(matches.map((m) => [m.id, { availability: {}, notiz: "", ersatzSpieler: [] }]));
+
+// Reihenfolge der Mannschaften für die "obere Mannschaft"-Regel bei Ersatzspielern:
+// Ersatz darf aus jeder Mannschaft außer der eigenen und der direkt darüber
+// gemeldeten Mannschaft kommen (übliche Höherspielrecht-Regel).
+const TEAM_ORDER = ["t1", "t2", "t3", "t4", "t5", "t6"];
+const SENIOR_ORDER = ["s1", "s2"];
+
+function upperTeamId(teamId) {
+  let idx = TEAM_ORDER.indexOf(teamId);
+  if (idx > 0) return TEAM_ORDER[idx - 1];
+  idx = SENIOR_ORDER.indexOf(teamId);
+  if (idx > 0) return SENIOR_ORDER[idx - 1];
+  return null;
+}
+
+function eligibleSubstitutes(team) {
+  const upper = upperTeamId(team.id);
+  const excluded = new Set([team.id, upper].filter(Boolean));
+  const names = new Set();
+  TEAMS.forEach((t) => {
+    if (excluded.has(t.id)) return;
+    t.players.forEach((p) => names.add(p));
+  });
+  return Array.from(names).sort((a, b) => a.localeCompare(b, "de"));
+}
 
 function initials(name) {
   return name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
@@ -332,27 +360,35 @@ function mapsLink(address) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }
 
-function whatsappShareUrl(team, m, avail, notiz) {
+function whatsappShareUrl(team, m, avail, notiz, ersatzSpieler) {
   const yes = team.players.filter((p) => avail[p] === "yes");
   const no = team.players.filter((p) => avail[p] === "no");
-  const unsicher = team.players.filter((p) => avail[p] === "request" || avail[p] === "unclear");
+  const request = team.players.filter((p) => avail[p] === "request");
+  const unclear = team.players.filter((p) => avail[p] === "unclear");
+  const open = team.players.filter((p) => !avail[p]);
   const divider = "──────────────";
+
   const lines = [
-    `🏓 *${team.label}* – ${m.home ? "Heimspiel" : "Auswärtsspiel"}`,
-    `*vs. ${m.opponent}*`,
-    "",
-    `📅 ${m.weekday}, ${m.date}, ${m.time} Uhr`,
-    m.address ? `📍 ${m.address}` : "",
-    m.address ? mapsLink(m.address) : "",
-    "",
+    `🏓 *${team.label}* – ${team.league}`,
+    `${m.home ? "🏠 Heimspiel" : "🚌 Auswärtsspiel"} gegen *${m.opponent}*`,
     divider,
-    `✅ *Zusagen (${yes.length}/${team.players.length})*`,
-    yes.length ? yes.join("\n") : "_noch keine_",
+    `📅 ${m.weekday}, ${m.date}`,
+    `🕐 ${m.time} Uhr`,
   ];
-  if (no.length) lines.push("", `❌ *Absagen*`, no.join("\n"));
-  if (unsicher.length) lines.push("", `❔ *Offen / in Klärung*`, unsicher.join("\n"));
+  if (m.address) {
+    lines.push(`📍 ${m.address}`, mapsLink(m.address));
+  }
+  lines.push(divider, `*Rückmeldungen (${yes.length}/${team.players.length} spielen)*`, "");
+  lines.push(`✅ Zusagen`, yes.length ? yes.map((p) => `   • ${p}`).join("\n") : "   _noch keine_");
+  if (no.length) lines.push("", `❌ Absagen`, no.map((p) => `   • ${p}`).join("\n"));
+  if (request.length) lines.push("", `❔ Auf Anfrage`, request.map((p) => `   • ${p}`).join("\n"));
+  if (unclear.length) lines.push("", `🟡 In Klärung`, unclear.map((p) => `   • ${p}`).join("\n"));
+  if (open.length) lines.push("", `⬜ Noch offen`, open.map((p) => `   • ${p}`).join("\n"));
+  if (ersatzSpieler && ersatzSpieler.length) lines.push("", `🟣 *Ersatzspieler*`, ersatzSpieler.map((p) => `   • ${p}`).join("\n"));
   if (notiz) lines.push("", divider, `📝 *Notiz*`, notiz);
-  return `https://wa.me/?text=${encodeURIComponent(lines.filter(Boolean).join("\n"))}`;
+  lines.push("", divider, `_Rückmeldung direkt in der App: ${window.location.origin}_`);
+
+  return `https://wa.me/?text=${encodeURIComponent(lines.filter((l) => l !== undefined).join("\n"))}`;
 }
 
 function blankMatch() {
@@ -369,7 +405,7 @@ export default function Einsatzplan() {
 
   const [data, setData] = useState(() => emptyRoundData(matches));
   const [me, setMe] = useState("");
-  const [view, setView] = useState("cards"); // "cards" | "leader"
+  const [view, setView] = useState("cards"); // "cards" | "leader" | "mine"
   const [status, setStatus] = useState("loading");
   const [errorMsg, setErrorMsg] = useState("");
   const [openNote, setOpenNote] = useState(null);
@@ -475,9 +511,146 @@ export default function Einsatzplan() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await load(team, round);
+    if (view === "mine") await loadMine();
+    else if (view === "club") await loadClub();
+    else await load(team, round);
     setRefreshing(false);
   };
+
+  const [crossData, setCrossData] = useState({});
+  const [mineLoading, setMineLoading] = useState(false);
+  const [mineError, setMineError] = useState("");
+
+  const loadMine = useCallback(async () => {
+    setMineLoading(true);
+    setMineError("");
+    const nextCross = {};
+    try {
+      for (const t of TEAMS) {
+        const savedName = window.localStorage.getItem(`ttve-me-${t.id}`);
+        if (!savedName || !t.players.includes(savedName)) continue;
+        for (const r of ROUNDS) {
+          const key = `${t.id}-${r.id}`;
+          const seedMatches = t.matches[r.id] || [];
+          const [dataResult, matchesResult] = await Promise.all([
+            getShared(STORAGE_PREFIX + key),
+            getShared(MATCHES_PREFIX + key),
+          ]);
+          const liveMatches = matchesResult && matchesResult.value ? JSON.parse(matchesResult.value) : seedMatches;
+          const liveData =
+            dataResult && dataResult.value
+              ? { ...emptyRoundData(liveMatches), ...JSON.parse(dataResult.value) }
+              : emptyRoundData(liveMatches);
+          nextCross[key] = { matches: liveMatches, data: liveData, me: savedName, team: t, round: r.id };
+        }
+      }
+      setCrossData(nextCross);
+    } catch (e) {
+      setMineError(`Laden fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
+    } finally {
+      setMineLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view === "mine") loadMine();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
+  const mineUpcoming = useMemo(() => {
+    const now = new Date();
+    const items = [];
+    Object.values(crossData).forEach(({ matches, data, me: meName, team: t, round: r }) => {
+      matches.forEach((m) => {
+        if (!m.date) return;
+        const d = matchToDate(m);
+        if (d < new Date(now.getTime() - 3 * 3600 * 1000)) return;
+        const entry = data[m.id] || { availability: {}, notiz: "", ersatzSpieler: [] };
+        items.push({ team: t, round: r, match: m, myStatus: entry.availability[meName], meName, notiz: entry.notiz });
+      });
+    });
+    items.sort((a, b) => matchToDate(a.match) - matchToDate(b.match));
+    return items;
+  }, [crossData]);
+
+  const setMineStatus = async (item, value) => {
+    const key = `${item.team.id}-${item.round}`;
+    const cross = crossData[key];
+    if (!cross) return;
+    const current = cross.data[item.match.id] || { availability: {}, notiz: "", ersatzSpieler: [] };
+    const currentVal = current.availability[item.meName];
+    const nextVal = currentVal === value ? undefined : value;
+    const nextAvail = { ...current.availability };
+    if (nextVal === undefined) delete nextAvail[item.meName];
+    else nextAvail[item.meName] = nextVal;
+    const nextData = { ...cross.data, [item.match.id]: { ...current, availability: nextAvail } };
+    setCrossData((prev) => ({ ...prev, [key]: { ...prev[key], data: nextData } }));
+    try {
+      await setShared(STORAGE_PREFIX + key, JSON.stringify(nextData));
+    } catch (e) {
+      setMineError(`Speichern fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
+    }
+  };
+
+  const [clubData, setClubData] = useState({});
+  const [clubLoading, setClubLoading] = useState(false);
+  const [clubError, setClubError] = useState("");
+
+  const loadClub = useCallback(async () => {
+    setClubLoading(true);
+    setClubError("");
+    const next = {};
+    try {
+      for (const t of TEAMS) {
+        for (const r of ROUNDS) {
+          const key = `${t.id}-${r.id}`;
+          const seedMatches = t.matches[r.id] || [];
+          const [dataResult, matchesResult] = await Promise.all([
+            getShared(STORAGE_PREFIX + key),
+            getShared(MATCHES_PREFIX + key),
+          ]);
+          const liveMatches = matchesResult && matchesResult.value ? JSON.parse(matchesResult.value) : seedMatches;
+          const liveData =
+            dataResult && dataResult.value
+              ? { ...emptyRoundData(liveMatches), ...JSON.parse(dataResult.value) }
+              : emptyRoundData(liveMatches);
+          next[key] = { matches: liveMatches, data: liveData, team: t, round: r.id };
+        }
+      }
+      setClubData(next);
+    } catch (e) {
+      setClubError(`Laden fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
+    } finally {
+      setClubLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view === "club") loadClub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
+  const clubByDate = useMemo(() => {
+    const now = new Date();
+    const map = new Map();
+    Object.values(clubData).forEach(({ matches, data, team: t, round: r }) => {
+      matches.forEach((m) => {
+        if (!m.date) return;
+        const d = matchToDate(m);
+        if (d < new Date(now.getTime() - 3 * 3600 * 1000)) return;
+        const entry = data[m.id] || { availability: {}, notiz: "", ersatzSpieler: [] };
+        const avail = entry.availability || {};
+        const s = computeMatchStatus(t.players, avail, t.requiredPlayers);
+        const fest = t.players.length - s.open.length - s.unsicher.length - s.no.length;
+        if (!map.has(m.date)) map.set(m.date, []);
+        map.get(m.date).push({ team: t, round: r, match: m, s, fest });
+      });
+    });
+    const entries = Array.from(map.entries());
+    entries.sort((a, b) => dmyToIso(a[0]).localeCompare(dmyToIso(b[0])));
+    entries.forEach(([, list]) => list.sort((x, y) => x.match.time.localeCompare(y.match.time)));
+    return entries;
+  }, [clubData]);
 
   const chooseMe = (name) => {
     setMe(name);
@@ -517,7 +690,7 @@ export default function Einsatzplan() {
 
   const setMyAvailability = (matchId, value) => {
     if (!me) return;
-    const current = data[matchId] || { availability: {}, notiz: "" };
+    const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [] };
     const currentValue = current.availability[me];
     const nextValue = currentValue === value ? undefined : value;
     const nextAvailability = { ...current.availability };
@@ -527,9 +700,22 @@ export default function Einsatzplan() {
   };
 
   const setNote = (matchId, text) => {
-    if (!authUser) return;
-    const current = data[matchId] || { availability: {}, notiz: "" };
+    const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [] };
     persist({ ...data, [matchId]: { ...current, notiz: text } });
+  };
+
+  const addErsatzSpieler = (matchId, name) => {
+    if (!name) return;
+    const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [] };
+    const list = current.ersatzSpieler || [];
+    if (list.includes(name)) return;
+    persist({ ...data, [matchId]: { ...current, ersatzSpieler: [...list, name] } });
+  };
+
+  const removeErsatzSpieler = (matchId, name) => {
+    const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [] };
+    const list = (current.ersatzSpieler || []).filter((n) => n !== name);
+    persist({ ...data, [matchId]: { ...current, ersatzSpieler: list } });
   };
 
   const resetAll = () => {
@@ -605,9 +791,9 @@ export default function Einsatzplan() {
                   <button
                     onClick={handleLogout}
                     title={`Eingeloggt als ${authUser.email} – zum Abmelden klicken`}
-                    className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-2 rounded-lg bg-emerald-700 text-white"
+                    className="p-2 rounded-lg bg-emerald-700 text-white"
                   >
-                    <Shield size={14} /> Mannschaftsführer <LogOut size={13} />
+                    <LockOpen size={18} />
                   </button>
                 ) : (
                   <button
@@ -661,7 +847,19 @@ export default function Einsatzplan() {
             )}
           </div>
 
-          <div className="text-emerald-300 text-xs mt-2">{team.league}</div>
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-emerald-300 text-xs">{team.league}</span>
+            {team.tableUrl && (
+              <a
+                href={team.tableUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-white bg-emerald-700 hover:bg-emerald-600 px-2 py-0.5 rounded"
+              >
+                Tabelle <ExternalLink size={10} />
+              </a>
+            )}
+          </div>
 
           {/* Round tabs */}
           <div className="mt-3 flex gap-1.5">
@@ -767,26 +965,46 @@ export default function Einsatzplan() {
       {/* View toggle + Kalender-Export + Refresh */}
       <div className="max-w-2xl mx-auto px-5">
         <div className="flex items-center gap-2 mt-3">
-          <div className="flex bg-stone-200 dark:bg-stone-800 rounded-lg p-1 flex-1">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 bg-stone-200 dark:bg-stone-800 rounded-lg p-1 flex-1">
+            <button
+              onClick={() => setView("mine")}
+              className={`text-[11px] font-bold py-1.5 rounded-md px-1 ${
+                view === "mine"
+                  ? "bg-white dark:bg-stone-700 text-stone-800 dark:text-stone-100 shadow-sm"
+                  : "text-stone-500 dark:text-stone-400"
+              }`}
+            >
+              Meine Spiele
+            </button>
+            <button
+              onClick={() => setView("club")}
+              className={`text-[11px] font-bold py-1.5 rounded-md px-1 ${
+                view === "club"
+                  ? "bg-white dark:bg-stone-700 text-stone-800 dark:text-stone-100 shadow-sm"
+                  : "text-stone-500 dark:text-stone-400"
+              }`}
+            >
+              Verein
+            </button>
             <button
               onClick={() => setView("cards")}
-              className={`flex-1 text-xs font-bold py-1.5 rounded-md ${
+              className={`text-[11px] font-bold py-1.5 rounded-md px-1 truncate ${
                 view === "cards"
                   ? "bg-white dark:bg-stone-700 text-stone-800 dark:text-stone-100 shadow-sm"
                   : "text-stone-500 dark:text-stone-400"
               }`}
             >
-              Meine Rückmeldung
+              {team.label}
             </button>
             <button
               onClick={() => setView("leader")}
-              className={`flex-1 text-xs font-bold py-1.5 rounded-md ${
+              className={`text-[11px] font-bold py-1.5 rounded-md px-1 ${
                 view === "leader"
                   ? "bg-white dark:bg-stone-700 text-stone-800 dark:text-stone-100 shadow-sm"
                   : "text-stone-500 dark:text-stone-400"
               }`}
             >
-              Mannschaftsführeransicht
+              Gesamt
             </button>
           </div>
           <button
@@ -796,13 +1014,15 @@ export default function Einsatzplan() {
           >
             <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
           </button>
-          <button
-            onClick={() => downloadICS(team, round)}
-            title="Alle Spiele dieser Runde als Kalender-Datei exportieren"
-            className="flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-lg bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700 flex-shrink-0"
-          >
-            <CalendarDays size={14} /> .ics
-          </button>
+          {view === "cards" && (
+            <button
+              onClick={() => downloadICS(team, round)}
+              title="Alle Spiele dieser Runde als Kalender-Datei exportieren"
+              className="flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-lg bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700 flex-shrink-0"
+            >
+              <CalendarDays size={14} /> .ics
+            </button>
+          )}
         </div>
       </div>
 
@@ -844,6 +1064,202 @@ export default function Einsatzplan() {
         </div>
       </div>
 
+      {/* Vereinsübersicht: alle Mannschaften nach Datum, Zusagen-Status */}
+      {view === "club" && (
+        <main className="max-w-2xl mx-auto px-5 mt-4 flex flex-col gap-5">
+          {clubLoading && (
+            <div className="flex items-center justify-center gap-2 text-sm text-stone-400 dark:text-stone-500 py-10">
+              <Loader2 size={14} className="animate-spin" /> Lädt alle Mannschaften…
+            </div>
+          )}
+          {clubError && (
+            <div className="flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded px-3 py-2">
+              <AlertTriangle size={14} /> {clubError}
+            </div>
+          )}
+          {!clubLoading && !clubError && clubByDate.length === 0 && (
+            <div className="text-center text-sm text-stone-400 dark:text-stone-500 py-10">
+              Keine anstehenden Spiele gefunden.
+            </div>
+          )}
+          {clubByDate.map(([dateStr, items]) => (
+            <section key={dateStr}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-bold uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                  {items[0].match.weekday} {dateStr}
+                </span>
+                {items.length > 1 && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-400">
+                    {items.length} Mannschaften zeitgleich
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                {items.map(({ team: t, round: r, match: m, s, fest }) => (
+                  <button
+                    key={`${t.id}-${r}-${m.id}`}
+                    onClick={() => {
+                      setTeamId(t.id);
+                      setRound(r);
+                      setView("cards");
+                    }}
+                    className={`text-left rounded-lg border px-3 py-2.5 flex items-center gap-3 ${
+                      s.warning
+                        ? "border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40"
+                        : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900"
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">{t.label}</span>
+                        <span className="text-[10px] text-stone-400 dark:text-stone-500 font-mono">{m.time}</span>
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                            m.home
+                              ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400"
+                              : "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400"
+                          }`}
+                        >
+                          {m.home ? "Heim" : "Ausw."}
+                        </span>
+                      </div>
+                      <div className="text-sm text-stone-700 dark:text-stone-200 truncate">vs. {m.opponent}</div>
+                      {s.no.length > 0 && (
+                        <div className="text-[11px] text-red-600 dark:text-red-400 mt-0.5 truncate">
+                          Abgesagt: {s.no.join(", ")}
+                        </div>
+                      )}
+                    </div>
+                    <span
+                      className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
+                        s.warning ? "bg-red-600 text-white" : s.complete ? "bg-emerald-600 text-white" : "bg-amber-500 text-white"
+                      }`}
+                    >
+                      {s.warning ? "⚠️ Ersatz nötig" : s.complete ? "✅ Komplett" : `${fest}/${t.players.length} fest`}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
+        </main>
+      )}
+
+      {/* Meine Spiele (teamübergreifend) */}
+      {view === "mine" && (
+        <main className="max-w-2xl mx-auto px-5 mt-4 flex flex-col gap-3">
+          {mineLoading && (
+            <div className="flex items-center justify-center gap-2 text-sm text-stone-400 dark:text-stone-500 py-10">
+              <Loader2 size={14} className="animate-spin" /> Lädt deine Spiele aus allen Mannschaften…
+            </div>
+          )}
+          {mineError && (
+            <div className="flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded px-3 py-2">
+              <AlertTriangle size={14} /> {mineError}
+            </div>
+          )}
+          {!mineLoading && !mineError && mineUpcoming.length === 0 && (
+            <div className="text-center text-sm text-stone-400 dark:text-stone-500 py-10 px-4">
+              Keine anstehenden Spiele gefunden. Wähle in mindestens einer Mannschaft oben unter „Ich
+              bin" deinen Namen aus – deine Spiele erscheinen dann hier, teamübergreifend und nach
+              Datum sortiert.
+            </div>
+          )}
+          {mineUpcoming.map((item) => (
+            <div
+              key={`${item.team.id}-${item.round}-${item.match.id}`}
+              className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 overflow-hidden"
+            >
+              <div className="px-4 pt-3 flex items-center justify-between gap-2">
+                <button
+                  onClick={() => {
+                    setTeamId(item.team.id);
+                    setRound(item.round);
+                    setView("cards");
+                  }}
+                  className="text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400 hover:underline"
+                  title="Zu dieser Mannschaft wechseln"
+                >
+                  {item.team.label}
+                </button>
+                <span
+                  className={`flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded uppercase tracking-wide ${
+                    item.match.home
+                      ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-400"
+                      : "bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-400"
+                  }`}
+                >
+                  {item.match.home ? <Home size={11} /> : <MapPin size={11} />}
+                  {item.match.home ? "Heim" : "Auswärts"}
+                </span>
+              </div>
+              <div className="px-4 pt-1 pb-2">
+                <div className="text-xs text-stone-400 dark:text-stone-500 font-semibold flex items-center gap-1">
+                  <Clock size={10} /> {item.match.weekday} {item.match.date} · {item.match.time} Uhr
+                </div>
+                <div className="text-stone-900 dark:text-stone-100 font-semibold">{item.match.opponent}</div>
+                {item.match.address && (
+                  <a
+                    href={mapsLink(item.match.address)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 flex items-start gap-1.5 text-xs text-emerald-700 dark:text-emerald-400 hover:underline"
+                  >
+                    <Navigation size={12} className="flex-shrink-0 mt-0.5" />
+                    <span>{item.match.address}</span>
+                  </a>
+                )}
+                {item.notiz && (
+                  <div className="mt-1.5 text-xs text-stone-500 dark:text-stone-400 italic">📝 {item.notiz}</div>
+                )}
+              </div>
+              <div className="border-t border-stone-100 dark:border-stone-800 px-4 py-3 grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setMineStatus(item, "yes")}
+                  className={`flex items-center justify-center gap-1.5 text-sm font-bold py-2 rounded border ${
+                    item.myStatus === "yes"
+                      ? "bg-emerald-600 border-emerald-600 text-white"
+                      : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
+                  }`}
+                >
+                  <Check size={15} /> Ich spiele
+                </button>
+                <button
+                  onClick={() => setMineStatus(item, "no")}
+                  className={`flex items-center justify-center gap-1.5 text-sm font-bold py-2 rounded border ${
+                    item.myStatus === "no"
+                      ? "bg-red-600 border-red-600 text-white"
+                      : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
+                  }`}
+                >
+                  <X size={15} /> Ich kann nicht
+                </button>
+                <button
+                  onClick={() => setMineStatus(item, "request")}
+                  className={`flex items-center justify-center gap-1.5 text-sm font-bold py-2 rounded border ${
+                    item.myStatus === "request"
+                      ? "bg-sky-600 border-sky-600 text-white"
+                      : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
+                  }`}
+                >
+                  <HelpCircle size={15} /> Auf Anfrage
+                </button>
+                <button
+                  onClick={() => setMineStatus(item, "unclear")}
+                  className={`flex items-center justify-center gap-1.5 text-sm font-bold py-2 rounded border ${
+                    item.myStatus === "unclear"
+                      ? "bg-amber-500 border-amber-500 text-white"
+                      : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
+                  }`}
+                >
+                  <CircleDashed size={15} /> In Klärung
+                </button>
+              </div>
+            </div>
+          ))}
+        </main>
+      )}
+
       {/* Match cards */}
       {view === "cards" && (
       <main className="max-w-2xl mx-auto px-5 mt-4 flex flex-col gap-3">
@@ -854,7 +1270,7 @@ export default function Einsatzplan() {
           </div>
         )}
         {matches.map((m, idx) => {
-          const entry = data[m.id] || { availability: {}, notiz: "" };
+          const entry = data[m.id] || { availability: {}, notiz: "", ersatzSpieler: [] };
           const avail = entry.availability || {};
           const players = team.players;
 
@@ -1130,20 +1546,56 @@ export default function Einsatzplan() {
                   )
                 )}
 
-                {authUser && (
-                  <button
-                    onClick={() => setOpenNote(openNote === `${teamId}-${round}-${m.id}` ? null : `${teamId}-${round}-${m.id}`)}
-                    className="text-xs text-stone-400 dark:text-stone-500 underline underline-offset-2 mt-2"
+                {/* Ersatzspieler aus anderen Mannschaften */}
+                <div className="mt-3">
+                  <label className="text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wide mb-1.5 block">
+                    Ersatzspieler
+                  </label>
+                  {(entry.ersatzSpieler || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {(entry.ersatzSpieler || []).map((name) => (
+                        <span
+                          key={name}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-full bg-violet-100 dark:bg-violet-950 text-violet-800 dark:text-violet-300 border border-violet-300 dark:border-violet-800"
+                        >
+                          {name}
+                          <button
+                            onClick={() => removeErsatzSpieler(m.id, name)}
+                            className="hover:text-violet-950 dark:hover:text-white"
+                            title={`${name} entfernen`}
+                          >
+                            <X size={11} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      addErsatzSpieler(m.id, e.target.value);
+                      e.target.value = "";
+                    }}
+                    className="w-full text-sm rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-stone-600 dark:text-stone-300"
                   >
-                    {entry.notiz ? "Notiz bearbeiten" : "+ Notiz"}
-                  </button>
-                )}
-                {!authUser && entry.notiz && (
-                  <div className="mt-2 text-sm text-stone-600 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 rounded px-3 py-2">
-                    📝 {entry.notiz}
-                  </div>
-                )}
-                {authUser && (openNote === `${teamId}-${round}-${m.id}` || entry.notiz) && (
+                    <option value="">+ Ersatzspieler hinzufügen…</option>
+                    {eligibleSubstitutes(team)
+                      .filter((name) => !(entry.ersatzSpieler || []).includes(name))
+                      .map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <button
+                  onClick={() => setOpenNote(openNote === `${teamId}-${round}-${m.id}` ? null : `${teamId}-${round}-${m.id}`)}
+                  className="text-xs text-stone-400 dark:text-stone-500 underline underline-offset-2 mt-3"
+                >
+                  {entry.notiz ? "Notiz bearbeiten" : "+ Notiz (Fahrgemeinschaft, sonstiges)"}
+                </button>
+                {(openNote === `${teamId}-${round}-${m.id}` || entry.notiz) && (
                   <textarea
                     value={entry.notiz}
                     onChange={(e) => setNote(m.id, e.target.value)}
@@ -1162,7 +1614,7 @@ export default function Einsatzplan() {
                     <CalendarPlus size={13} /> Kalender
                   </button>
                   <a
-                    href={whatsappShareUrl(team, m, avail, entry.notiz)}
+                    href={whatsappShareUrl(team, m, avail, entry.notiz, entry.ersatzSpieler)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-lg bg-[#25D366] text-emerald-950 hover:brightness-95"
@@ -1196,7 +1648,7 @@ export default function Einsatzplan() {
           ) : (
           <div className="bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-800 divide-y divide-stone-100 dark:divide-stone-800">
             {matches.map((m, idx) => {
-              const entry = data[m.id] || { availability: {}, notiz: "" };
+              const entry = data[m.id] || { availability: {}, notiz: "", ersatzSpieler: [] };
               const avail = entry.availability || {};
               const s = computeMatchStatus(team.players, avail, team.requiredPlayers);
               const fest = team.players.length - s.open.length - s.unsicher.length - s.no.length;
@@ -1242,6 +1694,12 @@ export default function Einsatzplan() {
                       {s.open.length > 0 && (
                         <span className="text-stone-400 dark:text-stone-500">Offen: {s.open.join(", ")}</span>
                       )}
+                    </div>
+                  )}
+
+                  {(entry.ersatzSpieler || []).length > 0 && (
+                    <div className="mt-1.5 text-xs text-violet-700 dark:text-violet-400">
+                      🟣 Ersatz: {entry.ersatzSpieler.join(", ")}
                     </div>
                   )}
 
