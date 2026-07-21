@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { initializeFirestore, memoryLocalCache } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 // Diese Werte trägst du nach dem Anlegen deines Firebase-Projekts
@@ -17,19 +17,10 @@ export const configIsMissing = !firebaseConfig.apiKey || !firebaseConfig.project
 
 const app = configIsMissing ? null : initializeApp(firebaseConfig);
 
-// - memoryLocalCache: schaltet die lokale IndexedDB-Zwischenspeicherung aus.
-//   Diese sorgt bei mehreren gleichzeitig offenen Tabs/Fenstern (z. B. beim
-//   Testen in normalem + privatem Fenster gleichzeitig) dafür, dass sich die
-//   Tabs gegenseitig blockieren ("Speichert…" hängt dann in den anderen
-//   Tabs dauerhaft). Für dieses Live-Team-Tool brauchen wir keine
-//   Offline-Zwischenspeicherung, daher schalten wir sie komplett ab.
-// - experimentalForceLongPolling: erzwingt die kompatible Verbindungsart für
-//   restriktive Netzwerke/Firewalls.
-export const db = configIsMissing
-  ? null
-  : initializeFirestore(app, {
-      localCache: memoryLocalCache(),
-      experimentalForceLongPolling: true,
-    });
+// Bewusst die einfachste Standard-Konfiguration ohne Spezialoptionen –
+// die Netzwerk-Ebene funktioniert nachweislich (schnelle 200er-Antworten),
+// daher testen wir, ob die Spezialeinstellungen (Long-Polling erzwingen,
+// Cache deaktivieren) selbst die Ursache waren.
+export const db = configIsMissing ? null : getFirestore(app);
 
 export const auth = configIsMissing ? null : getAuth(app);
