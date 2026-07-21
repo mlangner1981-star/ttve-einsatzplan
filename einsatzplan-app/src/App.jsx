@@ -518,6 +518,7 @@ export default function Einsatzplan() {
   };
 
   const [crossData, setCrossData] = useState({});
+  const [myNames, setMyNames] = useState([]);
   const [mineLoading, setMineLoading] = useState(false);
   const [mineError, setMineError] = useState("");
 
@@ -525,10 +526,15 @@ export default function Einsatzplan() {
     setMineLoading(true);
     setMineError("");
     const nextCross = {};
+    const names = new Set();
     try {
       for (const t of TEAMS) {
-        const savedName = window.localStorage.getItem(`ttve-me-${t.id}`);
-        if (!savedName || !t.players.includes(savedName)) continue;
+        const saved = window.localStorage.getItem(`ttve-me-${t.id}`);
+        if (saved && t.players.includes(saved)) names.add(saved);
+      }
+      // Wir müssen alle Mannschaften laden (nicht nur die eigenen), da man auch
+      // als Ersatzspieler in einer fremden Mannschaft eingeplant sein kann.
+      for (const t of TEAMS) {
         for (const r of ROUNDS) {
           const key = `${t.id}-${r.id}`;
           const seedMatches = t.matches[r.id] || [];
@@ -541,10 +547,11 @@ export default function Einsatzplan() {
             dataResult && dataResult.value
               ? { ...emptyRoundData(liveMatches), ...JSON.parse(dataResult.value) }
               : emptyRoundData(liveMatches);
-          nextCross[key] = { matches: liveMatches, data: liveData, me: savedName, team: t, round: r.id };
+          nextCross[key] = { matches: liveMatches, data: liveData, team: t, round: r.id };
         }
       }
       setCrossData(nextCross);
+      setMyNames(Array.from(names));
     } catch (e) {
       setMineError(`Laden fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
     } finally {
@@ -557,21 +564,41 @@ export default function Einsatzplan() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
 
+  // Nur Spiele, bei denen ich zugesagt habe ("Ich spiele") oder als
+  // Ersatzspieler eingetragen bin – über alle Mannschaften hinweg.
   const mineUpcoming = useMemo(() => {
     const now = new Date();
     const items = [];
-    Object.values(crossData).forEach(({ matches, data, me: meName, team: t, round: r }) => {
+    Object.values(crossData).forEach(({ matches, data, team: t, round: r }) => {
       matches.forEach((m) => {
         if (!m.date) return;
         const d = matchToDate(m);
         if (d < new Date(now.getTime() - 3 * 3600 * 1000)) return;
         const entry = data[m.id] || { availability: {}, notiz: "", ersatzSpieler: [] };
-        items.push({ team: t, round: r, match: m, myStatus: entry.availability[meName], meName, notiz: entry.notiz });
+        const avail = entry.availability || {};
+        const ersatzListe = entry.ersatzSpieler || [];
+        const playingName = myNames.find((n) => t.players.includes(n) && avail[n] === "yes");
+        if (playingName) {
+          items.push({
+            team: t,
+            round: r,
+            match: m,
+            role: "spielt",
+            meName: playingName,
+            myStatus: avail[playingName],
+            notiz: entry.notiz,
+          });
+          return;
+        }
+        const ersatzName = myNames.find((n) => ersatzListe.includes(n));
+        if (ersatzName) {
+          items.push({ team: t, round: r, match: m, role: "ersatz", meName: ersatzName, notiz: entry.notiz });
+        }
       });
     });
     items.sort((a, b) => matchToDate(a.match) - matchToDate(b.match));
     return items;
-  }, [crossData]);
+  }, [crossData, myNames]);
 
   const setMineStatus = async (item, value) => {
     const key = `${item.team.id}-${item.round}`;
@@ -584,6 +611,21 @@ export default function Einsatzplan() {
     if (nextVal === undefined) delete nextAvail[item.meName];
     else nextAvail[item.meName] = nextVal;
     const nextData = { ...cross.data, [item.match.id]: { ...current, availability: nextAvail } };
+    setCrossData((prev) => ({ ...prev, [key]: { ...prev[key], data: nextData } }));
+    try {
+      await setShared(STORAGE_PREFIX + key, JSON.stringify(nextData));
+    } catch (e) {
+      setMineError(`Speichern fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
+    }
+  };
+
+  const removeMineErsatz = async (item) => {
+    const key = `${item.team.id}-${item.round}`;
+    const cross = crossData[key];
+    if (!cross) return;
+    const current = cross.data[item.match.id] || { availability: {}, notiz: "", ersatzSpieler: [] };
+    const nextList = (current.ersatzSpieler || []).filter((n) => n !== item.meName);
+    const nextData = { ...cross.data, [item.match.id]: { ...current, ersatzSpieler: nextList } };
     setCrossData((prev) => ({ ...prev, [key]: { ...prev[key], data: nextData } }));
     try {
       await setShared(STORAGE_PREFIX + key, JSON.stringify(nextData));
@@ -722,6 +764,34 @@ export default function Einsatzplan() {
     if (!authUser) return;
     if (confirm(`Wirklich alle Rückmeldungen der ${team.label} zurücksetzen?`)) {
       persist(emptyRoundData(matches));
+    }
+  };
+
+  const [resetAllLoading, setResetAllLoading] = useState(false);
+
+  const resetEverything = async () => {
+    if (!authUser) return;
+    const input = window.prompt(
+      'ACHTUNG: Das löscht Zusagen, Absagen, Notizen und Ersatzspieler-Eintragungen für ALLE 8 Mannschaften (Hin- und Rückrunde) unwiderruflich. Spielpläne und Kader bleiben erhalten.\n\nZum Bestätigen "LÖSCHEN" eintippen:'
+    );
+    if (input !== "LÖSCHEN") return;
+    setResetAllLoading(true);
+    try {
+      for (const t of TEAMS) {
+        for (const r of ROUNDS) {
+          const key = `${t.id}-${r.id}`;
+          const result = await setShared(STORAGE_PREFIX + key, JSON.stringify({}));
+          if (!result) throw new Error(`Fehler bei ${t.label} (${r.label})`);
+        }
+      }
+      await load(team, round);
+      if (view === "mine") await loadMine();
+      if (view === "club") await loadClub();
+      alert("Alle Rückmeldungen für alle Mannschaften wurden zurückgesetzt.");
+    } catch (e) {
+      alert(`Zurücksetzen fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
+    } finally {
+      setResetAllLoading(false);
     }
   };
 
@@ -1160,15 +1230,19 @@ export default function Einsatzplan() {
           )}
           {!mineLoading && !mineError && mineUpcoming.length === 0 && (
             <div className="text-center text-sm text-stone-400 dark:text-stone-500 py-10 px-4">
-              Keine anstehenden Spiele gefunden. Wähle in mindestens einer Mannschaft oben unter „Ich
-              bin" deinen Namen aus – deine Spiele erscheinen dann hier, teamübergreifend und nach
-              Datum sortiert.
+              Keine Spiele gefunden, bei denen du zugesagt hast oder als Ersatzspieler eingeplant
+              bist. Wähle oben unter „Ich bin" deinen Namen und sag zu, oder lass dich bei einer
+              anderen Mannschaft als Ersatz eintragen.
             </div>
           )}
           {mineUpcoming.map((item) => (
             <div
               key={`${item.team.id}-${item.round}-${item.match.id}`}
-              className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 overflow-hidden"
+              className={`rounded-lg border overflow-hidden ${
+                item.role === "ersatz"
+                  ? "border-violet-300 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/30"
+                  : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900"
+              }`}
             >
               <div className="px-4 pt-3 flex items-center justify-between gap-2">
                 <button
@@ -1182,16 +1256,23 @@ export default function Einsatzplan() {
                 >
                   {item.team.label}
                 </button>
-                <span
-                  className={`flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded uppercase tracking-wide ${
-                    item.match.home
-                      ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-400"
-                      : "bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-400"
-                  }`}
-                >
-                  {item.match.home ? <Home size={11} /> : <MapPin size={11} />}
-                  {item.match.home ? "Heim" : "Auswärts"}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  {item.role === "ersatz" && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-600 text-white uppercase tracking-wide">
+                      Ersatzspieler
+                    </span>
+                  )}
+                  <span
+                    className={`flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded uppercase tracking-wide ${
+                      item.match.home
+                        ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-400"
+                        : "bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-400"
+                    }`}
+                  >
+                    {item.match.home ? <Home size={11} /> : <MapPin size={11} />}
+                    {item.match.home ? "Heim" : "Auswärts"}
+                  </span>
+                </div>
               </div>
               <div className="px-4 pt-1 pb-2">
                 <div className="text-xs text-stone-400 dark:text-stone-500 font-semibold flex items-center gap-1">
@@ -1213,48 +1294,60 @@ export default function Einsatzplan() {
                   <div className="mt-1.5 text-xs text-stone-500 dark:text-stone-400 italic">📝 {item.notiz}</div>
                 )}
               </div>
-              <div className="border-t border-stone-100 dark:border-stone-800 px-4 py-3 grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => setMineStatus(item, "yes")}
-                  className={`flex items-center justify-center gap-1.5 text-sm font-bold py-2 rounded border ${
-                    item.myStatus === "yes"
-                      ? "bg-emerald-600 border-emerald-600 text-white"
-                      : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
-                  }`}
-                >
-                  <Check size={15} /> Ich spiele
-                </button>
-                <button
-                  onClick={() => setMineStatus(item, "no")}
-                  className={`flex items-center justify-center gap-1.5 text-sm font-bold py-2 rounded border ${
-                    item.myStatus === "no"
-                      ? "bg-red-600 border-red-600 text-white"
-                      : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
-                  }`}
-                >
-                  <X size={15} /> Ich kann nicht
-                </button>
-                <button
-                  onClick={() => setMineStatus(item, "request")}
-                  className={`flex items-center justify-center gap-1.5 text-sm font-bold py-2 rounded border ${
-                    item.myStatus === "request"
-                      ? "bg-sky-600 border-sky-600 text-white"
-                      : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
-                  }`}
-                >
-                  <HelpCircle size={15} /> Auf Anfrage
-                </button>
-                <button
-                  onClick={() => setMineStatus(item, "unclear")}
-                  className={`flex items-center justify-center gap-1.5 text-sm font-bold py-2 rounded border ${
-                    item.myStatus === "unclear"
-                      ? "bg-amber-500 border-amber-500 text-white"
-                      : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
-                  }`}
-                >
-                  <CircleDashed size={15} /> In Klärung
-                </button>
-              </div>
+
+              {item.role === "spielt" ? (
+                <div className="border-t border-stone-100 dark:border-stone-800 px-4 py-3 grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setMineStatus(item, "yes")}
+                    className={`flex items-center justify-center gap-1.5 text-sm font-bold py-2 rounded border ${
+                      item.myStatus === "yes"
+                        ? "bg-emerald-600 border-emerald-600 text-white"
+                        : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
+                    }`}
+                  >
+                    <Check size={15} /> Ich spiele
+                  </button>
+                  <button
+                    onClick={() => setMineStatus(item, "no")}
+                    className={`flex items-center justify-center gap-1.5 text-sm font-bold py-2 rounded border ${
+                      item.myStatus === "no"
+                        ? "bg-red-600 border-red-600 text-white"
+                        : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
+                    }`}
+                  >
+                    <X size={15} /> Ich kann nicht
+                  </button>
+                  <button
+                    onClick={() => setMineStatus(item, "request")}
+                    className={`flex items-center justify-center gap-1.5 text-sm font-bold py-2 rounded border ${
+                      item.myStatus === "request"
+                        ? "bg-sky-600 border-sky-600 text-white"
+                        : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
+                    }`}
+                  >
+                    <HelpCircle size={15} /> Auf Anfrage
+                  </button>
+                  <button
+                    onClick={() => setMineStatus(item, "unclear")}
+                    className={`flex items-center justify-center gap-1.5 text-sm font-bold py-2 rounded border ${
+                      item.myStatus === "unclear"
+                        ? "bg-amber-500 border-amber-500 text-white"
+                        : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
+                    }`}
+                  >
+                    <CircleDashed size={15} /> In Klärung
+                  </button>
+                </div>
+              ) : (
+                <div className="border-t border-violet-200 dark:border-violet-900 px-4 py-3">
+                  <button
+                    onClick={() => removeMineErsatz(item)}
+                    className="w-full flex items-center justify-center gap-1.5 text-sm font-bold py-2 rounded border border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900"
+                  >
+                    <X size={15} /> Nicht mehr als Ersatz verfügbar
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </main>
@@ -1712,6 +1805,32 @@ export default function Einsatzplan() {
           </div>
           )}
         </main>
+      )}
+
+      {authUser && (
+        <div className="max-w-2xl mx-auto px-5 mt-8">
+          <div className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-4">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-red-700 dark:text-red-400 uppercase tracking-wide mb-1.5">
+              <AlertTriangle size={13} /> Admin-Bereich
+            </div>
+            <p className="text-xs text-red-700 dark:text-red-400 mb-3">
+              Setzt Zusagen, Absagen, Notizen und Ersatzspieler für <strong>alle 8 Mannschaften</strong>{" "}
+              (Hin- und Rückrunde) zurück. Spielpläne, Adressen und Kader bleiben unverändert.
+            </p>
+            <button
+              onClick={resetEverything}
+              disabled={resetAllLoading}
+              className="w-full flex items-center justify-center gap-1.5 text-sm font-bold py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white disabled:opacity-60"
+            >
+              {resetAllLoading ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Trash2 size={15} />
+              )}
+              Alle Rückmeldungen aller Mannschaften zurücksetzen
+            </button>
+          </div>
+        </div>
       )}
 
       <footer className="max-w-2xl mx-auto px-5 mt-8 text-center text-[11px] text-stone-400 dark:text-stone-600">
