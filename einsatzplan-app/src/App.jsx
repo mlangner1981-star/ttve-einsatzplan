@@ -455,8 +455,12 @@ export default function Einsatzplan() {
     } catch (e) {
       setMatchesOverride(seedMatches);
       setData(emptyRoundData(seedMatches));
-      setStatus(configIsMissing ? "error" : "ready");
-      if (configIsMissing) setErrorMsg("Firebase ist noch nicht konfiguriert (siehe README.md).");
+      setStatus("error");
+      setErrorMsg(
+        configIsMissing
+          ? "Firebase ist noch nicht konfiguriert (siehe README.md)."
+          : `Laden fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"} – es werden vorübergehend Standarddaten angezeigt.`
+      );
     }
   }, []);
 
@@ -493,7 +497,7 @@ export default function Einsatzplan() {
       setErrorMsg(
         configIsMissing
           ? "Firebase ist noch nicht konfiguriert (siehe README.md)."
-          : "Speichern fehlgeschlagen. Bitte erneut versuchen."
+          : `Speichern fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`
       );
     }
   };
@@ -507,7 +511,7 @@ export default function Einsatzplan() {
       setStatus("ready");
     } catch (e) {
       setStatus("error");
-      setErrorMsg("Speichern des Spielplans fehlgeschlagen. Bitte erneut versuchen.");
+      setErrorMsg(`Speichern des Spielplans fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
     }
   };
 
