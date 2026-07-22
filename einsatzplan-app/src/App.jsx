@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Check,
   X,
@@ -298,19 +298,16 @@ function computeMatchStatus(players, avail, requiredPlayers) {
   const open = players.filter((p) => !avail[p]);
   const teamSize = players.length;
 
-  let ersatz = null;
   let warning = null;
   if (teamSize - no.length < requiredPlayers) {
     warning = `Nur ${teamSize - no.length} Spieler fest zugesagt – externer Ersatz nötig!`;
-  } else if (no.length === teamSize - requiredPlayers && no.length > 0) {
-    ersatz = no.join(", ");
   }
   const complete = open.length === 0 && unsicher.length === 0 && !warning;
   // "filled": die Mannschaft ist einsatzbereit, sobald genug Spieler aktiv
   // zugesagt haben (>= requiredPlayers) – unabhängig davon, ob der Rest des
   // Kaders schon reagiert hat.
   const filled = yes.length >= requiredPlayers;
-  return { no, yes, unsicher, open, ersatz, warning, complete, filled, requiredPlayers };
+  return { no, yes, unsicher, open, warning, complete, filled, requiredPlayers };
 }
 
 function pad(n) {
@@ -669,14 +666,55 @@ export default function Einsatzplan() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId]);
 
+  const [welcomeName, setWelcomeName] = useState(null);
+  const welcomeShownRef = useRef(false);
+
   useEffect(() => {
     const saved = window.localStorage.getItem(`ttve-me-${teamId}`);
     setMe(saved && team.players.includes(saved) ? saved : "");
     setEditingId(null);
     setConfirmDeleteId(null);
     load(team, round);
+    if (!welcomeShownRef.current && saved && team.players.includes(saved)) {
+      welcomeShownRef.current = true;
+      setWelcomeName(saved);
+      setTimeout(() => setWelcomeName(null), 4000);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId, round]);
+
+  // Nächstes relevantes Spiel fürs Dashboard: bevorzugt das nächste Spiel,
+  // bei dem ich schon zugesagt habe, sonst einfach das nächste Spiel der Mannschaft.
+  const dashboardMatch = useMemo(() => {
+    const now = new Date();
+    const upcoming = matches
+      .filter((m) => m.date && matchToDate(m) > new Date(now.getTime() - 3 * 3600 * 1000))
+      .sort((a, b) => matchToDate(a) - matchToDate(b));
+    if (upcoming.length === 0) return null;
+    if (me) {
+      const myNext = upcoming.find((m) => data[m.id]?.availability?.[me] === "yes");
+      if (myNext) return myNext;
+    }
+    return upcoming[0];
+  }, [matches, data, me]);
+
+  const [, forceCountdownTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => forceCountdownTick((n) => n + 1), 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  function formatCountdown(match) {
+    if (!match) return "";
+    const diffMs = matchToDate(match) - new Date();
+    if (diffMs <= 0) return "Heute!";
+    const diffMin = Math.floor(diffMs / 60000);
+    const days = Math.floor(diffMin / (60 * 24));
+    const hours = Math.floor((diffMin % (60 * 24)) / 60);
+    if (days >= 1) return `in ${days} Tag${days > 1 ? "en" : ""}${hours > 0 ? ` ${hours} Std.` : ""}`;
+    if (hours >= 1) return `in ${hours} Std.`;
+    return `in ${diffMin} Min.`;
+  }
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -1296,6 +1334,11 @@ export default function Einsatzplan() {
     <div className={dark ? "dark" : ""}>
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950 pb-16 transition-colors">
       <Confetti triggerKey={confettiKey} />
+      {welcomeName && (
+        <div className="bg-emerald-600 text-white text-sm font-bold text-center py-2 px-4">
+          👋 Willkommen zurück, {welcomeName}!
+        </div>
+      )}
       {todaysBirthdays.length > 0 && (
         <div className="bg-gradient-to-r from-amber-400 via-pink-400 to-violet-400 text-white text-sm font-bold text-center py-2.5 px-4">
           🎂 Heute hat {todaysBirthdays.join(" & ")} Geburtstag – herzlichen Glückwunsch! 🎉
@@ -1309,22 +1352,17 @@ export default function Einsatzplan() {
       )}
       {/* Header */}
       <header className="bg-emerald-900 text-white">
-        <div className="max-w-2xl mx-auto px-5 pt-8 pb-5">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
+        <div className="max-w-2xl mx-auto px-5 pt-4 pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
               <img
                 src={LOGO_DATA_URI}
                 alt="TVE Logo"
-                className="w-11 h-11 rounded-full bg-white p-0.5 flex-shrink-0 object-contain"
+                className="w-9 h-9 rounded-full bg-white p-0.5 flex-shrink-0 object-contain"
               />
               <div>
-                <div className="text-emerald-300 text-xs font-bold tracking-widest uppercase mb-1">
-                  TTV Einigkeit Süchteln-Vorst
-                </div>
-                <h1 className="text-3xl font-black tracking-tight uppercase leading-none mb-1">
-                  Einsatzplan
-                </h1>
-                <div className="text-emerald-200 text-sm">Saison 2026/27</div>
+                <h1 className="text-xl font-black tracking-tight uppercase leading-none">Einsatzplan</h1>
+                <div className="text-emerald-300 text-[11px]">Saison 2026/27</div>
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -1335,7 +1373,7 @@ export default function Einsatzplan() {
                     title={`Eingeloggt als ${authUser.email} – zum Abmelden klicken`}
                     className="p-2 rounded-lg bg-emerald-700 text-white"
                   >
-                    <LockOpen size={18} />
+                    <LockOpen size={16} />
                   </button>
                 ) : (
                   <button
@@ -1343,7 +1381,7 @@ export default function Einsatzplan() {
                     title="Als Mannschaftsführer anmelden"
                     className="p-2 rounded-lg bg-emerald-800 text-emerald-200 hover:bg-emerald-700"
                   >
-                    <Lock size={18} />
+                    <Lock size={16} />
                   </button>
                 )
               )}
@@ -1352,13 +1390,13 @@ export default function Einsatzplan() {
                 title={dark ? "Heller Modus" : "Dunkler Modus"}
                 className="p-2 rounded-lg bg-emerald-800 text-emerald-200 hover:bg-emerald-700"
               >
-                {dark ? <Sun size={18} /> : <Moon size={18} />}
+                {dark ? <Sun size={16} /> : <Moon size={16} />}
               </button>
             </div>
           </div>
 
           {/* Team picker (8 Mannschaften, kompakt + Dropdown) */}
-          <div className="mt-5 relative">
+          <div className="mt-4 relative">
             <button
               onClick={() => setTeamPickerOpen((o) => !o)}
               className="w-full flex items-center gap-2 bg-emerald-800 hover:bg-emerald-700 text-white text-sm font-bold px-3 py-2.5 rounded-lg"
@@ -1887,6 +1925,33 @@ export default function Einsatzplan() {
       {/* Match cards */}
       {view === "cards" && (
       <main className="max-w-2xl mx-auto px-5 mt-4 flex flex-col gap-3">
+        {dashboardMatch && (() => {
+          const dEntry = data[dashboardMatch.id] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
+          const dAvail = dEntry.availability || {};
+          const dStats = computeMatchStatus(team.players, dAvail, team.requiredPlayers);
+          return (
+            <div className="rounded-xl bg-gradient-to-br from-emerald-700 to-emerald-800 text-white p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-200">Nächstes Spiel</span>
+                <span className="text-xs font-bold bg-white/15 px-2 py-0.5 rounded-full">{formatCountdown(dashboardMatch)}</span>
+              </div>
+              <div className="text-lg font-black leading-tight">
+                {dashboardMatch.weekday}, {dashboardMatch.date}
+              </div>
+              <div className="text-emerald-100 text-sm mb-2">{dashboardMatch.time} Uhr · {dashboardMatch.home ? "Heim" : "Auswärts"}</div>
+              <div className="text-base font-bold mb-3">{dashboardMatch.opponent}</div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-semibold">
+                  {dStats.yes.length}/{team.requiredPlayers} Spieler bestätigt
+                </span>
+                {dStats.open.length > 0 && (
+                  <span className="text-emerald-200 text-xs">Noch offen: {dStats.open.join(", ")}</span>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {matches.length === 0 && (
           <div className="text-center text-sm text-stone-400 dark:text-stone-500 py-10">
             Noch keine Spiele für die {ROUNDS.find((r) => r.id === round).label} eingetragen.
@@ -1898,7 +1963,7 @@ export default function Einsatzplan() {
           const avail = entry.availability || {};
           const players = team.players;
 
-          const { no, unsicher, open, ersatz, warning, filled, yes } = computeMatchStatus(players, avail, team.requiredPlayers);
+          const { no, unsicher, open, warning, filled, yes } = computeMatchStatus(players, avail, team.requiredPlayers);
 
           const myStatus = me ? avail[me] : undefined;
           const isEditing = editingId === m.id;
@@ -2154,9 +2219,9 @@ export default function Einsatzplan() {
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded px-2.5 py-1.5">
                     <AlertTriangle size={13} /> {warning}
                   </div>
-                ) : ersatz ? (
+                ) : no.length > 0 ? (
                   <div className="text-xs text-stone-600 dark:text-stone-400">
-                    <span className="font-semibold text-stone-700 dark:text-stone-300">Ersatz:</span> {ersatz}
+                    <span className="font-semibold text-red-600 dark:text-red-400">Abgesagt:</span> {no.join(", ")}
                     {(open.length > 0 || unsicher.length > 0) && (
                       <span className="text-stone-400 dark:text-stone-500">
                         {" · "}
