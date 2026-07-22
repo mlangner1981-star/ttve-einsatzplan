@@ -967,7 +967,7 @@ export default function Einsatzplan() {
         const s = computeMatchStatus(t.players, avail, t.requiredPlayers, entry.ersatzSpieler);
         const fest = s.confirmedCount;
         if (!map.has(m.date)) map.set(m.date, []);
-        map.get(m.date).push({ team: t, round: r, match: m, s, fest });
+        map.get(m.date).push({ team: t, round: r, match: m, s, fest, ersatz: entry.ersatzSpieler || [] });
       });
     });
     const entries = Array.from(map.entries());
@@ -1855,7 +1855,7 @@ export default function Einsatzplan() {
                 )}
               </div>
               <div className="flex flex-col gap-2">
-                {items.map(({ team: t, round: r, match: m, s, fest }) => (
+                {items.map(({ team: t, round: r, match: m, s, fest, ersatz }) => (
                   <button
                     key={`${t.id}-${r}-${m.id}`}
                     onClick={() => {
@@ -1887,6 +1887,11 @@ export default function Einsatzplan() {
                       {s.no.length > 0 && (
                         <div className="text-[11px] text-red-600 dark:text-red-400 mt-0.5 truncate">
                           Abgesagt: {s.no.join(", ")}
+                        </div>
+                      )}
+                      {ersatz.length > 0 && (
+                        <div className="text-[11px] text-violet-700 dark:text-violet-400 mt-0.5 truncate">
+                          🟣 Ersatz: {ersatz.join(", ")}
                         </div>
                       )}
                     </div>
