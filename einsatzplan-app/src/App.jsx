@@ -584,6 +584,11 @@ function todayDDMM() {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.`;
 }
 
+function todayDMY() {
+  const d = new Date();
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+}
+
 export default function Einsatzplan() {
   const [teamId, setTeamId] = useState("t2");
   const [round, setRound] = useState("hin");
@@ -764,6 +769,26 @@ export default function Einsatzplan() {
     }
     return upcoming[0];
   }, [matches, data, me]);
+
+  // 72h-Hinweis: steht ein Spiel bald an und ist noch nicht voll besetzt?
+  const urgentGap = useMemo(() => {
+    // Das nächste Spiel der Mannschaft (unabhängig von "me"), das noch nicht
+    // komplett ist und innerhalb von 72 Stunden stattfindet.
+    const now = new Date();
+    const upcoming = matches
+      .filter((m) => m.date && matchToDate(m) > new Date(now.getTime() - 3 * 3600 * 1000))
+      .sort((a, b) => matchToDate(a) - matchToDate(b));
+    for (const m of upcoming) {
+      const hoursUntil = (matchToDate(m) - now) / 3600000;
+      if (hoursUntil > 72) break;
+      const entry = data[m.id] || { availability: {}, ersatzSpieler: [] };
+      const avail = entry.availability || {};
+      const s = computeMatchStatus(team.players, avail, team.requiredPlayers, entry.ersatzSpieler);
+      const missing = team.requiredPlayers - s.confirmedCount;
+      if (missing > 0) return { match: m, missing, hoursUntil };
+    }
+    return null;
+  }, [matches, data, team]);
 
   const [, forceCountdownTick] = useState(0);
   useEffect(() => {
@@ -953,9 +978,9 @@ export default function Einsatzplan() {
   }, [allTeams]);
 
   useEffect(() => {
-    if (view === "club") loadClub();
+    loadClub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view]);
+  }, []);
 
   const clubByDate = useMemo(() => {
     const now = new Date();
@@ -977,6 +1002,69 @@ export default function Einsatzplan() {
     entries.sort((a, b) => dmyToIso(a[0]).localeCompare(dmyToIso(b[0])));
     entries.forEach(([, list]) => list.sort((x, y) => x.match.time.localeCompare(y.match.time)));
     return entries;
+  }, [clubData]);
+
+  // Ampel pro Mannschaft: Status des jeweils nächsten anstehenden Spiels.
+  const teamAmpel = useMemo(() => {
+    const now = new Date();
+    const result = {};
+    allTeams.forEach((t) => {
+      let next = null;
+      ROUNDS.forEach((r) => {
+        const key = `${t.id}-${r.id}`;
+        const cd = clubData[key];
+        if (!cd) return;
+        cd.matches.forEach((m) => {
+          if (!m.date) return;
+          const d = matchToDate(m);
+          if (d < new Date(now.getTime() - 3 * 3600 * 1000)) return;
+          if (!next || d < matchToDate(next.match)) next = { match: m, data: cd.data };
+        });
+      });
+      if (!next) {
+        result[t.id] = null;
+        return;
+      }
+      const entry = next.data[next.match.id] || { availability: {}, ersatzSpieler: [] };
+      const avail = entry.availability || {};
+      const s = computeMatchStatus(t.players, avail, t.requiredPlayers, entry.ersatzSpieler);
+      let color = "yellow";
+      let label = "";
+      if (s.warning) {
+        color = "red";
+        label = `${s.no.length} Absage${s.no.length === 1 ? "" : "n"}`;
+      } else if (s.filled) {
+        color = "green";
+        label = "vollständig";
+      } else {
+        color = "yellow";
+        label = `${t.requiredPlayers - s.confirmedCount} fehlt`;
+      }
+      result[t.id] = { color, label, match: next.match };
+    });
+    return result;
+  }, [clubData, allTeams]);
+
+  // Vereins-Dashboard: Zahlen für heutige Spiele über alle Mannschaften.
+  const clubTodayStats = useMemo(() => {
+    const today = todayDMY();
+    let matchCount = 0;
+    let playersInAction = 0;
+    let openReplies = 0;
+    let needSubs = 0;
+    Object.values(clubData).forEach(({ matches, data, team: t }) => {
+      matches.forEach((m) => {
+        if (m.date !== today) return;
+        matchCount++;
+        const entry = data[m.id] || { availability: {}, ersatzSpieler: [] };
+        const avail = entry.availability || {};
+        const s = computeMatchStatus(t.players, avail, t.requiredPlayers, entry.ersatzSpieler);
+        playersInAction += s.confirmedCount;
+        openReplies += s.open.length + s.unsicher.length;
+        if (s.warning) needSubs++;
+      });
+    });
+    return { matchCount, playersInAction, openReplies, needSubs };
   }, [clubData]);
 
   const [showSeasonReview, setShowSeasonReview] = useState(false);
@@ -1446,6 +1534,12 @@ export default function Einsatzplan() {
           🎂 Heute hat {todaysBirthdays.join(" & ")} Geburtstag – herzlichen Glückwunsch! 🎉
         </div>
       )}
+      {urgentGap && view === "cards" && (
+        <div className="bg-red-600 text-white text-sm font-bold text-center py-2.5 px-4">
+          ⏰ Es fehlen noch {urgentGap.missing} Spieler für {urgentGap.match.weekday} {urgentGap.match.date} gegen{" "}
+          {urgentGap.match.opponent} ({urgentGap.hoursUntil < 24 ? "in wenigen Stunden" : "in " + Math.floor(urgentGap.hoursUntil / 24) + " Tagen"})!
+        </div>
+      )}
       {configIsMissing && (
         <div className="bg-red-600 text-white text-xs font-semibold text-center py-2 px-4">
           ⚠️ Firebase ist noch nicht konfiguriert – trage deine Config-Werte als Umgebungsvariablen
@@ -1504,6 +1598,18 @@ export default function Einsatzplan() {
               className="w-full flex items-center gap-2 bg-emerald-800 hover:bg-emerald-700 text-white text-sm font-bold px-3 py-2.5 rounded-lg"
             >
               <Users size={15} />
+              {teamAmpel[team.id] && (
+                <span
+                  className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                    teamAmpel[team.id].color === "green"
+                      ? "bg-green-400"
+                      : teamAmpel[team.id].color === "red"
+                      ? "bg-red-400"
+                      : "bg-amber-400"
+                  }`}
+                  title={teamAmpel[team.id].label}
+                />
+              )}
               <span className="flex-1 text-left">{team.label}</span>
               <ChevronDown size={15} className={teamPickerOpen ? "rotate-180 transition-transform" : "transition-transform"} />
             </button>
@@ -1516,13 +1622,30 @@ export default function Einsatzplan() {
                       setTeamId(t.id);
                       setTeamPickerOpen(false);
                     }}
-                    className={`w-full text-left px-4 py-2.5 text-sm border-b border-stone-100 dark:border-stone-800 last:border-0 ${
+                    className={`w-full flex items-center gap-2 text-left px-4 py-2.5 text-sm border-b border-stone-100 dark:border-stone-800 last:border-0 ${
                       t.id === teamId
                         ? "bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold"
                         : "text-stone-700 dark:text-stone-200"
                     }`}
                   >
-                    {t.label}
+                    {teamAmpel[t.id] ? (
+                      <span
+                        className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                          teamAmpel[t.id].color === "green"
+                            ? "bg-green-500"
+                            : teamAmpel[t.id].color === "red"
+                            ? "bg-red-500"
+                            : "bg-amber-400"
+                        }`}
+                        title={teamAmpel[t.id].label}
+                      />
+                    ) : (
+                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-stone-300 dark:bg-stone-600" title="Kein anstehendes Spiel" />
+                    )}
+                    <span className="flex-1">{t.label}</span>
+                    {teamAmpel[t.id] && (
+                      <span className="text-[10px] text-stone-400 dark:text-stone-500 font-normal">{teamAmpel[t.id].label}</span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -1757,6 +1880,32 @@ export default function Einsatzplan() {
           {clubError && (
             <div className="flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded px-3 py-2">
               <AlertTriangle size={14} /> {clubError}
+            </div>
+          )}
+
+          {!clubLoading && !clubError && (
+            <div className="rounded-xl bg-gradient-to-br from-stone-800 to-stone-900 dark:from-emerald-950 dark:to-stone-950 text-white p-4">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2.5">
+                Vereins-Dashboard · Heute ({todayDMY()})
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-center">
+                <div>
+                  <div className="text-2xl font-black">{clubTodayStats.matchCount}</div>
+                  <div className="text-[10px] text-stone-400 leading-tight mt-0.5">Spiele heute</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-black text-emerald-400">{clubTodayStats.playersInAction}</div>
+                  <div className="text-[10px] text-stone-400 leading-tight mt-0.5">Spieler im Einsatz</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-black text-amber-400">{clubTodayStats.openReplies}</div>
+                  <div className="text-[10px] text-stone-400 leading-tight mt-0.5">offene Rückmeldungen</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-black text-red-400">{clubTodayStats.needSubs}</div>
+                  <div className="text-[10px] text-stone-400 leading-tight mt-0.5">Ersatz gesucht</div>
+                </div>
+              </div>
             </div>
           )}
 
