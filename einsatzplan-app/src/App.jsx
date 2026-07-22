@@ -918,7 +918,7 @@ export default function Einsatzplan() {
   // Erkennt, ob ein Spieler am selben Datum bei mehreren Mannschaften mit
   // "Ich spiele" zugesagt hat (Doppel-Zusage/Terminkonflikt).
   const scheduleConflicts = useMemo(() => {
-    const yesEntries = [];
+    const commitments = [];
     Object.values(clubData).forEach(({ matches, data, team: t }) => {
       matches.forEach((m) => {
         if (!m.date) return;
@@ -926,21 +926,29 @@ export default function Einsatzplan() {
         if (!entry) return;
         const avail = entry.availability || {};
         t.players.forEach((p) => {
-          if (avail[p] === "yes") yesEntries.push({ name: p, team: t, match: m });
+          if (avail[p] === "yes") commitments.push({ name: p, team: t, match: m, role: "spielt" });
+        });
+        (entry.ersatzSpieler || []).forEach((p) => {
+          commitments.push({ name: p, team: t, match: m, role: "ersatz" });
         });
       });
     });
     const byPlayerDate = new Map();
-    yesEntries.forEach((e) => {
+    commitments.forEach((e) => {
       const key = e.name + "|" + e.match.date;
       if (!byPlayerDate.has(key)) byPlayerDate.set(key, []);
       byPlayerDate.get(key).push(e);
     });
     const conflicts = [];
     byPlayerDate.forEach((list) => {
-      const teamIds = new Set(list.map((e) => e.team.id));
+      // Mehrfach-Einträge für dieselbe Mannschaft/dasselbe Spiel nicht als
+      // Konflikt werten (z. B. falls jemand versehentlich doppelt geführt wird).
+      const uniqueByTeamMatch = new Map();
+      list.forEach((e) => uniqueByTeamMatch.set(`${e.team.id}-${e.match.id}`, e));
+      const uniqueList = Array.from(uniqueByTeamMatch.values());
+      const teamIds = new Set(uniqueList.map((e) => e.team.id));
       if (teamIds.size < 2) return;
-      conflicts.push({ name: list[0].name, date: list[0].match.date, entries: list });
+      conflicts.push({ name: uniqueList[0].name, date: uniqueList[0].match.date, entries: uniqueList });
     });
     conflicts.sort((a, b) => dmyToIso(a.date).localeCompare(dmyToIso(b.date)));
     return conflicts;
@@ -1702,7 +1710,8 @@ export default function Einsatzplan() {
                     {c.entries.map((e, j) => (
                       <span key={j}>
                         {j > 0 && ", "}
-                        {e.team.label} ({e.match.time} Uhr vs. {e.match.opponent})
+                        {e.team.label} ({e.match.time} Uhr vs. {e.match.opponent}
+                        {e.role === "ersatz" ? " · als Ersatz" : ""})
                       </span>
                     ))}
                   </div>
