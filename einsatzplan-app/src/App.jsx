@@ -1085,9 +1085,16 @@ export default function Einsatzplan() {
   };
 
   const todaysBirthdays = useMemo(() => {
-    const today = todayDDMM();
+    const now = new Date();
+    const todayDay = now.getDate();
+    const todayMonth = now.getMonth() + 1;
     return Object.entries(birthdays)
-      .filter(([, val]) => val && val.startsWith(today))
+      .filter(([, val]) => {
+        if (!val) return false;
+        const parts = val.split(".").map((p) => parseInt(p, 10));
+        const [d, m] = parts;
+        return d === todayDay && m === todayMonth;
+      })
       .map(([name]) => name);
   }, [birthdays]);
   const [changelog, setChangelog] = useState(null);
