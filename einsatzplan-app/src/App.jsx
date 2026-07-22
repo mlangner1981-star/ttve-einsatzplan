@@ -1899,15 +1899,17 @@ export default function Einsatzplan() {
                       )}
                     </div>
                     <span
-                      className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
+                      className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap text-right ${
                         s.warning ? "bg-red-600 text-white" : s.filled ? "bg-emerald-600 text-white" : "bg-amber-500 text-white"
                       }`}
                     >
-                      {s.warning
-                        ? "⚠️ Ersatz nötig"
-                        : s.filled
-                        ? `✅ Komplett (${s.yes.length}/${t.requiredPlayers})`
-                        : `${fest}/${t.players.length} fest`}
+                      {s.warning ? (
+                        <>⚠️ {s.confirmedCount}/{t.requiredPlayers} · {Math.max(0, t.requiredPlayers - s.confirmedCount)} Ersatz fehlt</>
+                      ) : s.filled ? (
+                        <>✅ Komplett ({s.confirmedCount}/{t.requiredPlayers})</>
+                      ) : (
+                        <>{s.confirmedCount}/{t.requiredPlayers} · noch {t.requiredPlayers - s.confirmedCount} nötig</>
+                      )}
                     </span>
                   </button>
                 ))}
