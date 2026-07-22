@@ -82,6 +82,8 @@ const BUILTIN_TEAMS = [
     label: "2. Mannschaft",
     short: "2.",
     league: "1. Bezirksliga 2",
+    tableUrl:
+      "https://www.mytischtennis.de/click-tt/WTTV/26--27/ligen/1._Bezirksliga_2_Erwachsene/gruppe/522589/tabelle/gesamt",
     requiredPlayers: 6,
     players: [
       "Tim Schrangs",
@@ -113,7 +115,7 @@ const BUILTIN_TEAMS = [
     short: "3.",
     league: "2. Bezirksliga 2 (Niederrhein)",
     tableUrl:
-      "https://www.mytischtennis.de/click-tt/WTTV/26--27/ligen/2._Bezirksliga_2_(Niederrhein)_Erwachsene/gruppe/522365/tabelle/gesamt",
+      "https://www.mytischtennis.de/click-tt/WTTV/26--27/ligen/2._Bezirksliga_2_Erwachsene/gruppe/522365/tabelle/gesamt",
     requiredPlayers: 4,
     players: ["Marvin Krakau", "Linus Lennertz", "Michael Janssen", "Maximilian Peters", "Pauline Fretz", "Borja Hanhsen"],
     matches: {
@@ -136,6 +138,8 @@ const BUILTIN_TEAMS = [
     label: "4. Mannschaft",
     short: "4.",
     league: "1. Bezirksklasse 3 (Niederrhein)",
+    tableUrl:
+      "https://www.mytischtennis.de/click-tt/WTTV/26--27/ligen/1._Bezirksklasse_3_Erwachsene/gruppe/522889/tabelle/gesamt",
     requiredPlayers: 4,
     players: ["Frank Pollan", "Darius Venclovas", "Jörg Thelen", "Tobias Ohde"],
     matches: {
@@ -158,6 +162,8 @@ const BUILTIN_TEAMS = [
     label: "5. Mannschaft",
     short: "5.",
     league: "3. Bezirksklasse 5 (Niederrhein)",
+    tableUrl:
+      "https://www.mytischtennis.de/click-tt/WTTV/26--27/ligen/3._Bezirksklasse_5_Erwachsene/gruppe/522611/tabelle/gesamt",
     requiredPlayers: 4,
     players: ["Uwe Happel", "Maurits Gommans", "Achim Bahr", "Jörg Rehms", "Hans-Josef Seng"],
     matches: {
@@ -179,6 +185,8 @@ const BUILTIN_TEAMS = [
     label: "6. Mannschaft",
     short: "6.",
     league: "3. Bezirksklasse 6 (Niederrhein)",
+    tableUrl:
+      "https://www.mytischtennis.de/click-tt/WTTV/26--27/ligen/3._Bezirksklasse_6_Erwachsene/gruppe/522278/tabelle/gesamt",
     requiredPlayers: 4,
     players: ["Torsten Giesen", "Thomas Küppers", "Uwe Feldt", "Christoph Seidel", "Günther Bongartz", "Rudolf Müller"],
     matches: {
@@ -200,7 +208,9 @@ const BUILTIN_TEAMS = [
     id: "s1",
     label: "1. Senioren",
     short: "S1",
-    league: "Liga folgt",
+    league: "Bezirksoberliga 1 Senioren 40",
+    tableUrl:
+      "https://www.mytischtennis.de/click-tt/WTTV/26--27/ligen/Bezirksoberliga_1_Senioren_40/gruppe/522394/tabelle/gesamt",
     requiredPlayers: 4,
     players: ["Matthias Christen", "Benjamin Tullmin", "Thomas Fischer", "Michael Domnik"],
     matches: { hin: [], rueck: [] },
@@ -209,7 +219,9 @@ const BUILTIN_TEAMS = [
     id: "s2",
     label: "2. Senioren",
     short: "S2",
-    league: "Liga folgt",
+    league: "1. Bezirksliga 1 Senioren 40",
+    tableUrl:
+      "https://www.mytischtennis.de/click-tt/WTTV/26--27/ligen/1._Bezirksliga_1_Senioren_40/gruppe/522114/tabelle/gesamt",
     requiredPlayers: 4,
     players: ["André Skott", "Marcel Langner", "Jan-Dieter Brüggemann", "Thomas Smit", "Michael Janssen", "Frank Pollan", "Daniel Löwe", "Uwe Happel"],
     matches: { hin: [], rueck: [] },
