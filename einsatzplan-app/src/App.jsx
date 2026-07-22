@@ -1256,10 +1256,15 @@ export default function Einsatzplan() {
 
   const resetAll = () => {
     if (!authUser) return;
-    askConfirm(`Wirklich alle Rückmeldungen der ${team.label} zurücksetzen?`, () => {
-      persist(emptyRoundData(matches));
+    askConfirm(`Wirklich alle Rückmeldungen der ${team.label} zurücksetzen?`, async () => {
+      await persist(emptyRoundData(matches));
       const roundLabel = ROUNDS.find((r) => r.id === round)?.label || round;
       logChange(authUser.email, team.label, roundLabel, "Alle Rückmeldungen dieser Mannschaft zurückgesetzt");
+      // "Meine Spiele" und "Verein" nutzen einen eigenen Zwischenspeicher –
+      // den nach dem Zurücksetzen sofort mit auffrischen, sonst zeigen die
+      // dortigen Ansichten weiter den alten (jetzt gelöschten) Stand.
+      loadMine();
+      loadClub();
     });
   };
 
