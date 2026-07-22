@@ -61,6 +61,7 @@ const BUILTIN_TEAMS = [
       "David Ender",
       "Thomas Fischer",
       "Sven Brinkmann",
+      "Tim Schrangs",
     ],
     matches: {
       hin: [
@@ -914,6 +915,37 @@ export default function Einsatzplan() {
 
   const [showSeasonReview, setShowSeasonReview] = useState(false);
 
+  // Erkennt, ob ein Spieler am selben Datum bei mehreren Mannschaften mit
+  // "Ich spiele" zugesagt hat (Doppel-Zusage/Terminkonflikt).
+  const scheduleConflicts = useMemo(() => {
+    const yesEntries = [];
+    Object.values(clubData).forEach(({ matches, data, team: t }) => {
+      matches.forEach((m) => {
+        if (!m.date) return;
+        const entry = data[m.id];
+        if (!entry) return;
+        const avail = entry.availability || {};
+        t.players.forEach((p) => {
+          if (avail[p] === "yes") yesEntries.push({ name: p, team: t, match: m });
+        });
+      });
+    });
+    const byPlayerDate = new Map();
+    yesEntries.forEach((e) => {
+      const key = e.name + "|" + e.match.date;
+      if (!byPlayerDate.has(key)) byPlayerDate.set(key, []);
+      byPlayerDate.get(key).push(e);
+    });
+    const conflicts = [];
+    byPlayerDate.forEach((list) => {
+      const teamIds = new Set(list.map((e) => e.team.id));
+      if (teamIds.size < 2) return;
+      conflicts.push({ name: list[0].name, date: list[0].match.date, entries: list });
+    });
+    conflicts.sort((a, b) => dmyToIso(a.date).localeCompare(dmyToIso(b.date)));
+    return conflicts;
+  }, [clubData]);
+
   const seasonStats = useMemo(() => {
     const playerYes = {};
     const playerTotal = {};
@@ -1655,6 +1687,27 @@ export default function Einsatzplan() {
           {clubError && (
             <div className="flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded px-3 py-2">
               <AlertTriangle size={14} /> {clubError}
+            </div>
+          )}
+
+          {!clubLoading && !clubError && scheduleConflicts.length > 0 && (
+            <div className="rounded-lg border-2 border-red-400 dark:border-red-700 bg-red-50 dark:bg-red-950/50 p-4">
+              <div className="flex items-center gap-1.5 text-sm font-bold text-red-700 dark:text-red-400 mb-2">
+                <AlertTriangle size={15} /> Terminkonflikt{scheduleConflicts.length > 1 ? "e" : ""} erkannt
+              </div>
+              <div className="flex flex-col gap-2">
+                {scheduleConflicts.map((c, i) => (
+                  <div key={i} className="text-xs text-red-700 dark:text-red-300">
+                    <span className="font-bold">{c.name}</span> hat für <span className="font-semibold">{c.entries[0].match.weekday} {c.date}</span> bei mehreren Mannschaften zugesagt:{" "}
+                    {c.entries.map((e, j) => (
+                      <span key={j}>
+                        {j > 0 && ", "}
+                        {e.team.label} ({e.match.time} Uhr vs. {e.match.opponent})
+                      </span>
+                    ))}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
