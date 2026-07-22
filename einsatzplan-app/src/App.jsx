@@ -27,6 +27,7 @@ import {
   Share2,
   ChevronDown,
   ExternalLink,
+  Camera,
 } from "lucide-react";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { getShared, setShared } from "./storage.js";
@@ -234,6 +235,7 @@ const CHANGELOG_KEY = "ttv-suechteln-vorst-einsatzplan-changelog";
 const CHANGELOG_MAX = 50;
 const CUSTOM_TEAMS_KEY = "ttv-suechteln-vorst-teams-custom";
 const ROSTER_PREFIX = "ttv-suechteln-vorst-kader-";
+const BIRTHDAYS_KEY = "ttv-suechteln-vorst-geburtstage";
 
 const STATUS_LABELS = {
   yes: "Ich spiele",
@@ -258,7 +260,7 @@ async function logChange(who, teamLabel, roundLabel, action) {
 }
 
 const emptyRoundData = (matches) =>
-  Object.fromEntries(matches.map((m) => [m.id, { availability: {}, notiz: "", ersatzSpieler: [] }]));
+  Object.fromEntries(matches.map((m) => [m.id, { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] }]));
 
 // Reihenfolge der Mannschaften für die "obere Mannschaft"-Regel bei Ersatzspielern:
 // Ersatz darf aus jeder Mannschaft außer der eigenen und der direkt darüber
@@ -437,6 +439,85 @@ function whatsappShareUrl(team, m, avail, notiz, ersatzSpieler) {
 
 function blankMatch() {
   return { id: "n" + Date.now(), date: "", weekday: "", time: "", home: true, opponent: "", address: "" };
+}
+
+// Konfetti-Overlay: spielt kurz ab, wenn triggerKey sich ändert.
+function Confetti({ triggerKey }) {
+  const [particles, setParticles] = useState([]);
+  useEffect(() => {
+    if (!triggerKey) return;
+    const colors = ["#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#ec4899", "#facc15"];
+    const next = Array.from({ length: 70 }).map((_, i) => ({
+      id: i + "-" + triggerKey,
+      left: Math.random() * 100,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      delay: Math.random() * 0.35,
+      duration: 1.8 + Math.random() * 1.4,
+      rotate: Math.random() * 360,
+      size: 6 + Math.random() * 7,
+    }));
+    setParticles(next);
+    const t = setTimeout(() => setParticles([]), 3200);
+    return () => clearTimeout(t);
+  }, [triggerKey]);
+
+  if (particles.length === 0) return null;
+  return (
+    <div className="fixed inset-0 pointer-events-none z-[9999] overflow-hidden">
+      {particles.map((p) => (
+        <div
+          key={p.id}
+          style={{
+            position: "absolute",
+            top: -20,
+            left: p.left + "%",
+            width: p.size,
+            height: p.size * 0.4,
+            background: p.color,
+            animation: `ttve-confetti-fall ${p.duration}s ease-in ${p.delay}s forwards`,
+            transform: `rotate(${p.rotate}deg)`,
+            borderRadius: 1,
+          }}
+        />
+      ))}
+      <style>{`
+        @keyframes ttve-confetti-fall {
+          to { transform: translateY(110vh) rotate(720deg); opacity: 0.25; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// Verkleinert/komprimiert ein hochgeladenes Bild clientseitig (Canvas), damit
+// es klein genug für die Firestore-Speicherung bleibt.
+function resizeImageFile(file, maxWidth = 480, quality = 0.55) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxWidth / img.width);
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function todayDDMM() {
+  const d = new Date();
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.`;
 }
 
 export default function Einsatzplan() {
@@ -662,7 +743,7 @@ export default function Einsatzplan() {
         if (!m.date) return;
         const d = matchToDate(m);
         if (d < new Date(now.getTime() - 3 * 3600 * 1000)) return;
-        const entry = data[m.id] || { availability: {}, notiz: "", ersatzSpieler: [] };
+        const entry = data[m.id] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
         const avail = entry.availability || {};
         const ersatzListe = entry.ersatzSpieler || [];
         const playingName = myNames.find((n) => t.players.includes(n) && avail[n] === "yes");
@@ -692,7 +773,7 @@ export default function Einsatzplan() {
     const key = `${item.team.id}-${item.round}`;
     const cross = crossData[key];
     if (!cross) return;
-    const current = cross.data[item.match.id] || { availability: {}, notiz: "", ersatzSpieler: [] };
+    const current = cross.data[item.match.id] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
     const currentVal = current.availability[item.meName];
     const nextVal = currentVal === value ? undefined : value;
     const nextAvail = { ...current.availability };
@@ -720,7 +801,7 @@ export default function Einsatzplan() {
     const key = `${item.team.id}-${item.round}`;
     const cross = crossData[key];
     if (!cross) return;
-    const current = cross.data[item.match.id] || { availability: {}, notiz: "", ersatzSpieler: [] };
+    const current = cross.data[item.match.id] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
     const nextList = (current.ersatzSpieler || []).filter((n) => n !== item.meName);
     const nextData = { ...cross.data, [item.match.id]: { ...current, ersatzSpieler: nextList } };
     setCrossData((prev) => ({ ...prev, [key]: { ...prev[key], data: nextData } }));
@@ -779,7 +860,7 @@ export default function Einsatzplan() {
         if (!m.date) return;
         const d = matchToDate(m);
         if (d < new Date(now.getTime() - 3 * 3600 * 1000)) return;
-        const entry = data[m.id] || { availability: {}, notiz: "", ersatzSpieler: [] };
+        const entry = data[m.id] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
         const avail = entry.availability || {};
         const s = computeMatchStatus(t.players, avail, t.requiredPlayers);
         const fest = t.players.length - s.open.length - s.unsicher.length - s.no.length;
@@ -791,6 +872,50 @@ export default function Einsatzplan() {
     entries.sort((a, b) => dmyToIso(a[0]).localeCompare(dmyToIso(b[0])));
     entries.forEach(([, list]) => list.sort((x, y) => x.match.time.localeCompare(y.match.time)));
     return entries;
+  }, [clubData]);
+
+  const [showSeasonReview, setShowSeasonReview] = useState(false);
+
+  const seasonStats = useMemo(() => {
+    const playerYes = {};
+    const playerTotal = {};
+    const substituteCount = {};
+    let matchesWithReplies = 0;
+    let totalMatches = 0;
+
+    Object.values(clubData).forEach(({ matches, data, team: t }) => {
+      matches.forEach((m) => {
+        if (!m.date) return;
+        totalMatches++;
+        const entry = data[m.id];
+        if (!entry) return;
+        const avail = entry.availability || {};
+        let any = false;
+        t.players.forEach((p) => {
+          const st = avail[p];
+          if (st === "yes") {
+            playerYes[p] = (playerYes[p] || 0) + 1;
+            playerTotal[p] = (playerTotal[p] || 0) + 1;
+            any = true;
+          } else if (st === "no") {
+            playerTotal[p] = (playerTotal[p] || 0) + 1;
+          }
+        });
+        (entry.ersatzSpieler || []).forEach((p) => {
+          substituteCount[p] = (substituteCount[p] || 0) + 1;
+        });
+        if (any) matchesWithReplies++;
+      });
+    });
+
+    const topPlayer = Object.entries(playerYes).sort((a, b) => b[1] - a[1])[0];
+    const topSubstitute = Object.entries(substituteCount).sort((a, b) => b[1] - a[1])[0];
+    const reliability = Object.entries(playerTotal)
+      .filter(([, total]) => total >= 3)
+      .map(([p, total]) => [p, (playerYes[p] || 0) / total])
+      .sort((a, b) => b[1] - a[1])[0];
+
+    return { topPlayer, topSubstitute, reliability, totalMatches, matchesWithReplies };
   }, [clubData]);
 
   const chooseMe = (name) => {
@@ -831,12 +956,19 @@ export default function Einsatzplan() {
 
   const setMyAvailability = (matchId, value) => {
     if (!me) return;
-    const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [] };
+    const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
     const currentValue = current.availability[me];
     const nextValue = currentValue === value ? undefined : value;
     const nextAvailability = { ...current.availability };
     if (nextValue === undefined) delete nextAvailability[me];
     else nextAvailability[me] = nextValue;
+
+    const wasYesCount = Object.values(current.availability).filter((v) => v === "yes").length;
+    const nextYesCount = Object.values(nextAvailability).filter((v) => v === "yes").length;
+    if (wasYesCount < team.requiredPlayers && nextYesCount >= team.requiredPlayers) {
+      setConfettiKey((k) => k + 1);
+    }
+
     persist({ ...data, [matchId]: { ...current, availability: nextAvailability } });
     const opponent = matches.find((m) => m.id === matchId)?.opponent || "Spiel";
     const roundLabel = ROUNDS.find((r) => r.id === round)?.label || round;
@@ -849,7 +981,7 @@ export default function Einsatzplan() {
   };
 
   const setNote = (matchId, text) => {
-    const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [] };
+    const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
     persist({ ...data, [matchId]: { ...current, notiz: text } });
     const opponent = matches.find((m) => m.id === matchId)?.opponent || "Spiel";
     const roundLabel = ROUNDS.find((r) => r.id === round)?.label || round;
@@ -858,7 +990,7 @@ export default function Einsatzplan() {
 
   const addErsatzSpieler = (matchId, name) => {
     if (!name) return;
-    const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [] };
+    const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
     const list = current.ersatzSpieler || [];
     if (list.includes(name)) return;
     persist({ ...data, [matchId]: { ...current, ersatzSpieler: [...list, name] } });
@@ -868,12 +1000,42 @@ export default function Einsatzplan() {
   };
 
   const removeErsatzSpieler = (matchId, name) => {
-    const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [] };
+    const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
     const list = (current.ersatzSpieler || []).filter((n) => n !== name);
     persist({ ...data, [matchId]: { ...current, ersatzSpieler: list } });
     const opponent = matches.find((m) => m.id === matchId)?.opponent || "Spiel";
     const roundLabel = ROUNDS.find((r) => r.id === round)?.label || round;
     logChange(me, team.label, roundLabel, `Ersatzspieler ${name} entfernt bei ${opponent}`);
+  };
+
+  const [fotoUploading, setFotoUploading] = useState(null); // matchId, während Verarbeitung läuft
+
+  const addFoto = async (matchId, file) => {
+    if (!file) return;
+    const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
+    const fotos = current.fotos || [];
+    if (fotos.length >= 3) {
+      alert("Maximal 3 Fotos pro Spiel.");
+      return;
+    }
+    setFotoUploading(matchId);
+    try {
+      const dataUrl = await resizeImageFile(file);
+      persist({ ...data, [matchId]: { ...current, fotos: [...fotos, dataUrl] } });
+      const opponent = matches.find((m) => m.id === matchId)?.opponent || "Spiel";
+      const roundLabel = ROUNDS.find((r) => r.id === round)?.label || round;
+      logChange(me, team.label, roundLabel, `Foto hinzugefügt bei ${opponent}`);
+    } catch (e) {
+      alert("Foto konnte nicht verarbeitet werden.");
+    } finally {
+      setFotoUploading(null);
+    }
+  };
+
+  const removeFoto = (matchId, idx) => {
+    const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
+    const fotos = (current.fotos || []).filter((_, i) => i !== idx);
+    persist({ ...data, [matchId]: { ...current, fotos } });
   };
 
   const resetAll = () => {
@@ -886,6 +1048,48 @@ export default function Einsatzplan() {
   };
 
   const [resetAllLoading, setResetAllLoading] = useState(false);
+
+  // --- Konfetti ---
+  const [confettiKey, setConfettiKey] = useState(0);
+
+  // --- Geburtstage ---
+  const [birthdays, setBirthdays] = useState({});
+  const [birthdaysLoaded, setBirthdaysLoaded] = useState(false);
+
+  const loadBirthdays = useCallback(async () => {
+    try {
+      const res = await getShared(BIRTHDAYS_KEY);
+      setBirthdays(res && res.value ? JSON.parse(res.value) : {});
+    } catch (e) {
+      setBirthdays({});
+    } finally {
+      setBirthdaysLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBirthdays();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const setBirthday = async (name, value) => {
+    const next = { ...birthdays };
+    if (value) next[name] = value;
+    else delete next[name];
+    setBirthdays(next);
+    try {
+      await setShared(BIRTHDAYS_KEY, JSON.stringify(next));
+    } catch (e) {
+      alert(`Speichern fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
+    }
+  };
+
+  const todaysBirthdays = useMemo(() => {
+    const today = todayDDMM();
+    return Object.entries(birthdays)
+      .filter(([, val]) => val && val.startsWith(today))
+      .map(([name]) => name);
+  }, [birthdays]);
   const [changelog, setChangelog] = useState(null);
   const [changelogLoading, setChangelogLoading] = useState(false);
 
@@ -1084,6 +1288,12 @@ export default function Einsatzplan() {
   return (
     <div className={dark ? "dark" : ""}>
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950 pb-16 transition-colors">
+      <Confetti triggerKey={confettiKey} />
+      {todaysBirthdays.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-400 via-pink-400 to-violet-400 text-white text-sm font-bold text-center py-2.5 px-4">
+          🎂 Heute hat {todaysBirthdays.join(" & ")} Geburtstag – herzlichen Glückwunsch! 🎉
+        </div>
+      )}
       {configIsMissing && (
         <div className="bg-red-600 text-white text-xs font-semibold text-center py-2 px-4">
           ⚠️ Firebase ist noch nicht konfiguriert – trage deine Config-Werte als Umgebungsvariablen
@@ -1402,6 +1612,61 @@ export default function Einsatzplan() {
               <AlertTriangle size={14} /> {clubError}
             </div>
           )}
+
+          {!clubLoading && !clubError && Object.keys(clubData).length > 0 && (
+            <div>
+              <button
+                onClick={() => setShowSeasonReview((s) => !s)}
+                className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-gradient-to-r from-emerald-700 to-emerald-600 text-white"
+              >
+                <span className="flex items-center gap-2">🏆 Saison-Rückblick</span>
+                <ChevronDown size={16} className={showSeasonReview ? "rotate-180" : ""} />
+              </button>
+              {showSeasonReview && (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-3">
+                    <div className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wide">Meiste Einsätze</div>
+                    {seasonStats.topPlayer ? (
+                      <>
+                        <div className="text-sm font-bold text-stone-800 dark:text-stone-100 mt-1">{seasonStats.topPlayer[0]}</div>
+                        <div className="text-xs text-emerald-700 dark:text-emerald-400">{seasonStats.topPlayer[1]}× zugesagt</div>
+                      </>
+                    ) : (
+                      <div className="text-xs text-stone-400 mt-1">Noch keine Daten</div>
+                    )}
+                  </div>
+                  <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-3">
+                    <div className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wide">Zuverlässigster Spieler</div>
+                    {seasonStats.reliability ? (
+                      <>
+                        <div className="text-sm font-bold text-stone-800 dark:text-stone-100 mt-1">{seasonStats.reliability[0]}</div>
+                        <div className="text-xs text-emerald-700 dark:text-emerald-400">{Math.round(seasonStats.reliability[1] * 100)}% Zusagequote</div>
+                      </>
+                    ) : (
+                      <div className="text-xs text-stone-400 mt-1">Noch keine Daten</div>
+                    )}
+                  </div>
+                  <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-3">
+                    <div className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wide">🟣 Ersatz-Champion</div>
+                    {seasonStats.topSubstitute ? (
+                      <>
+                        <div className="text-sm font-bold text-stone-800 dark:text-stone-100 mt-1">{seasonStats.topSubstitute[0]}</div>
+                        <div className="text-xs text-violet-700 dark:text-violet-400">{seasonStats.topSubstitute[1]}× ausgeholfen</div>
+                      </>
+                    ) : (
+                      <div className="text-xs text-stone-400 mt-1">Noch keine Einsätze</div>
+                    )}
+                  </div>
+                  <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-3">
+                    <div className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wide">Spiele gesamt</div>
+                    <div className="text-sm font-bold text-stone-800 dark:text-stone-100 mt-1">{seasonStats.totalMatches}</div>
+                    <div className="text-xs text-stone-500 dark:text-stone-400">{seasonStats.matchesWithReplies} mit Rückmeldungen</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {!clubLoading && !clubError && clubByDate.length === 0 && (
             <div className="text-center text-sm text-stone-400 dark:text-stone-500 py-10">
               Keine anstehenden Spiele gefunden.
@@ -1622,7 +1887,7 @@ export default function Einsatzplan() {
           </div>
         )}
         {matches.map((m, idx) => {
-          const entry = data[m.id] || { availability: {}, notiz: "", ersatzSpieler: [] };
+          const entry = data[m.id] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
           const avail = entry.availability || {};
           const players = team.players;
 
@@ -1947,6 +2212,57 @@ export default function Einsatzplan() {
                   </select>
                 </div>
 
+                {/* Fotos */}
+                <div className="mt-3">
+                  <label className="text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wide mb-1.5 block">
+                    Fotos
+                  </label>
+                  {(entry.fotos || []).length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {entry.fotos.map((foto, idx) => (
+                        <div key={idx} className="relative">
+                          <a href={foto} target="_blank" rel="noopener noreferrer">
+                            <img
+                              src={foto}
+                              alt={`Foto ${idx + 1}`}
+                              className="w-16 h-16 object-cover rounded border border-stone-300 dark:border-stone-700"
+                            />
+                          </a>
+                          <button
+                            onClick={() => removeFoto(m.id, idx)}
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center rounded-full bg-red-600 text-white"
+                            title="Foto entfernen"
+                          >
+                            <X size={11} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {(entry.fotos || []).length < 3 && (
+                    <label className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg border border-dashed border-stone-300 dark:border-stone-700 text-stone-500 dark:text-stone-400 cursor-pointer hover:border-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-400">
+                      {fotoUploading === m.id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Camera size={14} />
+                      )}
+                      Foto hinzufügen
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        disabled={fotoUploading === m.id}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) addFoto(m.id, file);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+
                 <button
                   onClick={() => setOpenNote(openNote === `${teamId}-${round}-${m.id}` ? null : `${teamId}-${round}-${m.id}`)}
                   className="text-xs text-stone-400 dark:text-stone-500 underline underline-offset-2 mt-3"
@@ -2006,7 +2322,7 @@ export default function Einsatzplan() {
           ) : (
           <div className="bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-800 divide-y divide-stone-100 dark:divide-stone-800">
             {matches.map((m, idx) => {
-              const entry = data[m.id] || { availability: {}, notiz: "", ersatzSpieler: [] };
+              const entry = data[m.id] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
               const avail = entry.availability || {};
               const s = computeMatchStatus(team.players, avail, team.requiredPlayers);
               const fest = team.players.length - s.open.length - s.unsicher.length - s.no.length;
@@ -2142,6 +2458,35 @@ export default function Einsatzplan() {
                 {rosterSaving ? <Loader2 size={14} className="animate-spin" /> : <Users size={14} />}
                 Hinzufügen
               </button>
+            </div>
+          </div>
+
+          {/* Geburtstage verwalten */}
+          <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-4 mt-3">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wide mb-2">
+              🎂 Geburtstage verwalten
+            </div>
+            <p className="text-[11px] text-stone-400 dark:text-stone-500 mb-3">
+              An Spieltagen erscheint automatisch ein Glückwunsch-Banner, wenn ein Spieler
+              Geburtstag hat. Nur Tag und Monat werden gespeichert, kein Jahr.
+            </p>
+            <div className="flex flex-col gap-1.5 max-h-64 overflow-y-auto">
+              {Array.from(new Set(allTeams.flatMap((t) => t.players)))
+                .sort((a, b) => a.localeCompare(b, "de"))
+                .map((name) => (
+                  <div key={name} className="flex items-center gap-2">
+                    <span className="flex-1 text-sm text-stone-700 dark:text-stone-200 truncate">{name}</span>
+                    <input
+                      type="text"
+                      value={birthdays[name] || ""}
+                      onChange={(e) => setBirthdays((prev) => ({ ...prev, [name]: e.target.value }))}
+                      onBlur={(e) => setBirthday(name, e.target.value.trim())}
+                      placeholder="TT.MM."
+                      maxLength={6}
+                      className="w-20 rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-2 py-1 text-xs text-stone-800 dark:text-stone-100 text-center"
+                    />
+                  </div>
+                ))}
             </div>
           </div>
 
