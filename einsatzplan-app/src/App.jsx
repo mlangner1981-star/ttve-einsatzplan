@@ -1054,12 +1054,8 @@ export default function Einsatzplan() {
 
     const topPlayer = Object.entries(playerYes).sort((a, b) => b[1] - a[1])[0];
     const topSubstitute = Object.entries(substituteCount).sort((a, b) => b[1] - a[1])[0];
-    const reliability = Object.entries(playerTotal)
-      .filter(([, total]) => total >= 3)
-      .map(([p, total]) => [p, (playerYes[p] || 0) / total])
-      .sort((a, b) => b[1] - a[1])[0];
 
-    return { topPlayer, topSubstitute, reliability, totalMatches, matchesWithReplies };
+    return { topPlayer, topSubstitute, totalMatches, matchesWithReplies };
   }, [clubData]);
 
   const chooseMe = (name) => {
@@ -1796,24 +1792,13 @@ export default function Einsatzplan() {
                 <ChevronDown size={16} className={showSeasonReview ? "rotate-180" : ""} />
               </button>
               {showSeasonReview && (
-                <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="mt-2 grid grid-cols-3 gap-2">
                   <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-3">
                     <div className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wide">Meiste Einsätze</div>
                     {seasonStats.topPlayer ? (
                       <>
                         <div className="text-sm font-bold text-stone-800 dark:text-stone-100 mt-1">{seasonStats.topPlayer[0]}</div>
                         <div className="text-xs text-emerald-700 dark:text-emerald-400">{seasonStats.topPlayer[1]}× zugesagt</div>
-                      </>
-                    ) : (
-                      <div className="text-xs text-stone-400 mt-1">Noch keine Daten</div>
-                    )}
-                  </div>
-                  <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-3">
-                    <div className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wide">Zuverlässigster Spieler</div>
-                    {seasonStats.reliability ? (
-                      <>
-                        <div className="text-sm font-bold text-stone-800 dark:text-stone-100 mt-1">{seasonStats.reliability[0]}</div>
-                        <div className="text-xs text-emerald-700 dark:text-emerald-400">{Math.round(seasonStats.reliability[1] * 100)}% Zusagequote</div>
                       </>
                     ) : (
                       <div className="text-xs text-stone-400 mt-1">Noch keine Daten</div>
