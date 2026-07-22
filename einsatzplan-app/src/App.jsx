@@ -323,47 +323,6 @@ async function logChange(who, teamLabel, roundLabel, action) {
 const emptyRoundData = (matches) =>
   Object.fromEntries(matches.map((m) => [m.id, { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] }]));
 
-// Startwerte aus der bisherigen Excel-Abstimmungsliste (Spielplan_26_27_Vorrunde.xlt).
-// Werden nur verwendet, solange in Firestore noch KEINE echten Rückmeldungen für
-// diesen Spieltag gespeichert sind – sobald jemand in der App etwas ändert, gilt
-// ab dann ausschließlich der echte, gespeicherte Stand.
-const SEED_AVAILABILITY = {
-  "t1:hin": {
-    1: { availability: { "Matthias Christen": "yes", "Marcel Brunner": "yes", "Benjamin Tullmin": "yes", "David Ender": "yes", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
-    2: { availability: { "Matthias Christen": "yes", "Marcel Brunner": "unclear", "Benjamin Tullmin": "unclear", "David Ender": "yes", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
-    3: { availability: { "Matthias Christen": "yes", "Marcel Brunner": "yes", "Benjamin Tullmin": "yes", "David Ender": "yes", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
-    4: { availability: { "Matthias Christen": "yes", "Marcel Brunner": "unclear", "Benjamin Tullmin": "unclear", "David Ender": "unclear", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
-    5: { availability: { "Matthias Christen": "yes", "Marcel Brunner": "yes", "Benjamin Tullmin": "yes", "David Ender": "unclear", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
-    6: { availability: { "Matthias Christen": "yes", "Marcel Brunner": "yes", "Benjamin Tullmin": "yes", "David Ender": "yes", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
-    7: { availability: { "Matthias Christen": "yes", "Marcel Brunner": "yes", "Benjamin Tullmin": "yes", "David Ender": "unclear", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
-    8: { availability: { "Marcel Brunner": "yes", "Benjamin Tullmin": "yes", "David Ender": "yes", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
-    9: { availability: { "Matthias Christen": "yes", "Marcel Brunner": "yes", "Benjamin Tullmin": "yes", "David Ender": "unclear", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
-    10: { availability: { "Matthias Christen": "yes", "Marcel Brunner": "unclear", "Benjamin Tullmin": "unclear", "David Ender": "unclear", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
-  },
-  "t2:hin": {
-    1: { availability: { "Marcel Langner": "no", "Thomas Smit": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
-    2: { availability: { "Marcel Langner": "yes", "Thomas Smit": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
-    3: { availability: { "Marcel Langner": "yes", "Thomas Smit": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
-    4: { availability: { "Marcel Langner": "no", "Thomas Smit": "no" }, notiz: "", ersatzSpieler: [], fotos: [] },
-    5: { availability: { "Marcel Langner": "yes", "Thomas Smit": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
-    6: { availability: { "Marcel Langner": "yes", "Thomas Smit": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
-    7: { availability: { "Marcel Langner": "no", "Thomas Smit": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
-    8: { availability: { "Marcel Langner": "no", "Thomas Smit": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
-    9: { availability: { "Marcel Langner": "yes", "Thomas Smit": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
-  },
-};
-
-function seededEmptyRoundData(key, matches) {
-  const base = emptyRoundData(matches);
-  const seed = SEED_AVAILABILITY[key];
-  if (!seed) return base;
-  const merged = { ...base };
-  Object.entries(seed).forEach(([matchId, entry]) => {
-    if (merged[matchId]) merged[matchId] = { ...merged[matchId], ...entry };
-  });
-  return merged;
-}
-
 // Reihenfolge der Mannschaften für die "obere Mannschaft"-Regel bei Ersatzspielern:
 // Ersatz darf aus jeder Mannschaft außer der eigenen und der direkt darüber
 // gemeldeten Mannschaft kommen (übliche Höherspielrecht-Regel).
@@ -754,7 +713,7 @@ export default function Einsatzplan() {
         const parsed = JSON.parse(dataResult.value);
         setData({ ...emptyRoundData(liveMatches), ...parsed });
       } else {
-        setData(seededEmptyRoundData(t.id + ":" + r, liveMatches));
+        setData(emptyRoundData(liveMatches));
       }
       setStatus("ready");
     } catch (e) {
@@ -911,7 +870,7 @@ export default function Einsatzplan() {
           const liveData =
             dataResult && dataResult.value
               ? { ...emptyRoundData(liveMatches), ...JSON.parse(dataResult.value) }
-              : seededEmptyRoundData(key, liveMatches);
+              : emptyRoundData(liveMatches);
           nextCross[key] = { matches: liveMatches, data: liveData, team: t, round: r.id };
         }
       }
@@ -1035,7 +994,7 @@ export default function Einsatzplan() {
           const liveData =
             dataResult && dataResult.value
               ? { ...emptyRoundData(liveMatches), ...JSON.parse(dataResult.value) }
-              : seededEmptyRoundData(key, liveMatches);
+              : emptyRoundData(liveMatches);
           next[key] = { matches: liveMatches, data: liveData, team: t, round: r.id };
         }
       }
