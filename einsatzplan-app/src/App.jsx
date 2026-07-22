@@ -360,16 +360,19 @@ function computeMatchStatus(players, avail, requiredPlayers, ersatzSpieler) {
   const teamSize = players.length;
   const ersatzCount = (ersatzSpieler || []).length;
   // Zugesagte Ersatzspieler zählen wie eine Zusage für den Spieltag mit.
+  // "confirmedCount" = wirklich feste Zusagen (nur "Ich spiele" + Ersatzspieler) –
+  // "In Klärung"/"Auf Anfrage"/offen zählen bewusst NICHT als Zusage.
   const confirmedCount = yes.length + ersatzCount;
+  const maxPossible = teamSize - no.length + ersatzCount; // bester Fall: alle Unsicheren/Offenen sagen noch zu
 
   let warning = null;
-  if (teamSize - no.length + ersatzCount < requiredPlayers) {
-    warning = `Nur ${teamSize - no.length + ersatzCount} Spieler fest zugesagt – externer Ersatz nötig!`;
+  if (maxPossible < requiredPlayers) {
+    warning = `Selbst wenn alle noch offenen/unsicheren Spieler zusagen, reichen nur ${maxPossible} von ${requiredPlayers} – externer Ersatz nötig!`;
   }
   const complete = open.length === 0 && unsicher.length === 0 && !warning;
   // "filled": die Mannschaft ist einsatzbereit, sobald genug Spieler (inkl.
-  // bestätigter Ersatzspieler) aktiv zugesagt haben – unabhängig davon, ob
-  // der Rest des Kaders schon reagiert hat.
+  // bestätigter Ersatzspieler) FEST zugesagt haben ("Ich spiele") – "In
+  // Klärung"/"Auf Anfrage" zählen bewusst nicht mit.
   const filled = confirmedCount >= requiredPlayers;
   return { no, yes, unsicher, open, warning, complete, filled, requiredPlayers, ersatzCount, confirmedCount };
 }
