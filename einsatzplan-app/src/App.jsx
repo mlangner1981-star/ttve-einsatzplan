@@ -2098,42 +2098,6 @@ export default function Einsatzplan() {
       {/* Meine Spiele (teamübergreifend) */}
       {view === "mine" && (
         <main className="max-w-2xl mx-auto px-5 mt-4 flex flex-col gap-3">
-          {Object.keys(myTeamNames).length > 0 && (
-            <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 p-3">
-              <div className="text-xs font-bold text-amber-800 dark:text-amber-400 mb-2">
-                Deine Auswahl „Ich bin" ist aktuell in {Object.keys(myTeamNames).length} Mannschaft
-                {Object.keys(myTeamNames).length > 1 ? "en" : ""} hinterlegt (auf diesem Gerät):
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {Object.entries(myTeamNames).map(([tId, name]) => {
-                  const t = allTeams.find((x) => x.id === tId);
-                  return (
-                    <span
-                      key={tId}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full bg-white dark:bg-stone-800 border border-amber-300 dark:border-amber-800 text-stone-700 dark:text-stone-200"
-                    >
-                      {t?.label || tId}: {name}
-                      <button
-                        onClick={() => {
-                          window.localStorage.removeItem(`ttve-me-${tId}`);
-                          if (tId === teamId) setMe("");
-                          loadMine();
-                        }}
-                        className="text-amber-600 hover:text-red-600 dark:text-amber-400 dark:hover:text-red-400"
-                        title={`Auswahl bei ${t?.label || tId} entfernen`}
-                      >
-                        <X size={12} />
-                      </button>
-                    </span>
-                  );
-                })}
-              </div>
-              <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-2">
-                Nicht die richtige Mannschaft dabei? Mit dem X entfernen – falsche Spiele
-                verschwinden dann sofort aus der Liste unten.
-              </p>
-            </div>
-          )}
           {mineLoading && (
             <div className="flex items-center justify-center gap-2 text-sm text-stone-400 dark:text-stone-500 py-10">
               <Loader2 size={14} className="animate-spin" /> Lädt deine Spiele aus allen Mannschaften…
