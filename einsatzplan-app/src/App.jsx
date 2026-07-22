@@ -637,6 +637,26 @@ export default function Einsatzplan() {
   const [authUser, setAuthUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [showLogin, setShowLogin] = useState(false);
+
+  // --- In-App-Dialoge statt window.confirm/prompt/alert ---
+  // (native Browser-Dialoge funktionieren in installierten PWAs auf vielen
+  // Handys, besonders iPhone, nicht zuverlässig oder gar nicht.)
+  const [toast, setToast] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null); // { message, onConfirm }
+  const [promptModal, setPromptModal] = useState(null); // { message, expected, onConfirm }
+  const [promptInput, setPromptInput] = useState("");
+
+  const showToast = useCallback((message) => {
+    setToast(message);
+    setTimeout(() => setToast((t) => (t === message ? null : t)), 3500);
+  }, []);
+  const askConfirm = useCallback((message, onConfirm) => {
+    setConfirmModal({ message, onConfirm });
+  }, []);
+  const askPrompt = useCallback((message, expected, onConfirm) => {
+    setPromptInput("");
+    setPromptModal({ message, expected, onConfirm });
+  }, []);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -1211,7 +1231,7 @@ export default function Einsatzplan() {
     const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
     const fotos = current.fotos || [];
     if (fotos.length >= 3) {
-      alert("Maximal 3 Fotos pro Spiel.");
+      showToast("Maximal 3 Fotos pro Spiel.");
       return;
     }
     setFotoUploading(matchId);
@@ -1222,7 +1242,7 @@ export default function Einsatzplan() {
       const roundLabel = ROUNDS.find((r) => r.id === round)?.label || round;
       logChange(me, team.label, roundLabel, `Foto hinzugefügt bei ${opponent}`);
     } catch (e) {
-      alert("Foto konnte nicht verarbeitet werden.");
+      showToast("Foto konnte nicht verarbeitet werden.");
     } finally {
       setFotoUploading(null);
     }
@@ -1236,11 +1256,11 @@ export default function Einsatzplan() {
 
   const resetAll = () => {
     if (!authUser) return;
-    if (confirm(`Wirklich alle Rückmeldungen der ${team.label} zurücksetzen?`)) {
+    askConfirm(`Wirklich alle Rückmeldungen der ${team.label} zurücksetzen?`, () => {
       persist(emptyRoundData(matches));
       const roundLabel = ROUNDS.find((r) => r.id === round)?.label || round;
       logChange(authUser.email, team.label, roundLabel, "Alle Rückmeldungen dieser Mannschaft zurückgesetzt");
-    }
+    });
   };
 
   const [resetAllLoading, setResetAllLoading] = useState(false);
@@ -1276,7 +1296,7 @@ export default function Einsatzplan() {
     try {
       await setShared(BIRTHDAYS_KEY, JSON.stringify(next));
     } catch (e) {
-      alert(`Speichern fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
+      showToast(`Speichern fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
     }
   };
 
@@ -1329,7 +1349,7 @@ export default function Einsatzplan() {
       await setShared(ROSTER_PREFIX + tId, JSON.stringify(nextRoster));
       logChange(authUser?.email, allTeams.find((t) => t.id === tId)?.label || tId, "-", "Kader geändert");
     } catch (e) {
-      alert(`Kader speichern fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
+      showToast(`Kader speichern fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
     } finally {
       setRosterSaving(false);
     }
@@ -1347,11 +1367,12 @@ export default function Einsatzplan() {
   };
 
   const removePlayerFromRoster = (name) => {
-    if (!confirm(`${name} wirklich aus dem Kader der ${team.label} entfernen?`)) return;
-    persistRoster(
-      team.id,
-      team.players.filter((p) => p !== name)
-    );
+    askConfirm(`${name} wirklich aus dem Kader der ${team.label} entfernen?`, () => {
+      persistRoster(
+        team.id,
+        team.players.filter((p) => p !== name)
+      );
+    });
   };
 
   // --- Admin: neue Mannschaft anlegen ---
@@ -1371,7 +1392,7 @@ export default function Einsatzplan() {
   const createNewTeam = async () => {
     const label = newTeamLabel.trim();
     if (!label) {
-      alert("Bitte einen Namen für die Mannschaft eingeben.");
+      showToast("Bitte einen Namen für die Mannschaft eingeben.");
       return;
     }
     const id =
@@ -1403,7 +1424,7 @@ export default function Einsatzplan() {
       setTeamId(id);
       setView("cards");
     } catch (e) {
-      alert(`Anlegen fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
+      showToast(`Anlegen fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
     } finally {
       setNewTeamSaving(false);
     }
@@ -1412,42 +1433,47 @@ export default function Einsatzplan() {
   const deleteCustomTeam = async (tId) => {
     const t = customTeams.find((x) => x.id === tId);
     if (!t) return;
-    if (!confirm(`Mannschaft "${t.label}" wirklich komplett löschen? Das entfernt auch alle Spieltage und Rückmeldungen dieser Mannschaft unwiderruflich.`))
-      return;
-    try {
-      await persistCustomTeams(customTeams.filter((x) => x.id !== tId));
-      logChange(authUser?.email, t.label, "-", "Mannschaft gelöscht");
-      if (teamId === tId) setTeamId(BUILTIN_TEAMS[0].id);
-    } catch (e) {
-      alert(`Löschen fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
-    }
-  };
-
-  const resetEverything = async () => {
-    if (!authUser) return;
-    const input = window.prompt(
-      'ACHTUNG: Das löscht Zusagen, Absagen, Notizen und Ersatzspieler-Eintragungen für ALLE 8 Mannschaften (Hin- und Rückrunde) unwiderruflich. Spielpläne und Kader bleiben erhalten.\n\nZum Bestätigen "LÖSCHEN" eintippen:'
-    );
-    if (input !== "LÖSCHEN") return;
-    setResetAllLoading(true);
-    try {
-      for (const t of allTeams) {
-        for (const r of ROUNDS) {
-          const key = `${t.id}-${r.id}`;
-          const result = await setShared(STORAGE_PREFIX + key, JSON.stringify({}));
-          if (!result) throw new Error(`Fehler bei ${t.label} (${r.label})`);
+    askConfirm(
+      `Mannschaft "${t.label}" wirklich komplett löschen? Das entfernt auch alle Spieltage und Rückmeldungen dieser Mannschaft unwiderruflich.`,
+      async () => {
+        try {
+          await persistCustomTeams(customTeams.filter((x) => x.id !== tId));
+          logChange(authUser?.email, t.label, "-", "Mannschaft gelöscht");
+          if (teamId === tId) setTeamId(BUILTIN_TEAMS[0].id);
+        } catch (e) {
+          showToast(`Löschen fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
         }
       }
-      await load(team, round);
-      if (view === "mine") await loadMine();
-      if (view === "club") await loadClub();
-      await logChange(authUser.email, "ALLE Mannschaften", "Hin- & Rückrunde", "Kompletter Reset aller Rückmeldungen (Admin)");
-      alert("Alle Rückmeldungen für alle Mannschaften wurden zurückgesetzt.");
-    } catch (e) {
-      alert(`Zurücksetzen fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
-    } finally {
-      setResetAllLoading(false);
-    }
+    );
+  };
+
+  const resetEverything = () => {
+    if (!authUser) return;
+    askPrompt(
+      "ACHTUNG: Das löscht Zusagen, Absagen, Notizen und Ersatzspieler-Eintragungen für ALLE 8 Mannschaften (Hin- und Rückrunde) unwiderruflich. Spielpläne und Kader bleiben erhalten.",
+      "LÖSCHEN",
+      async () => {
+        setResetAllLoading(true);
+        try {
+          for (const t of allTeams) {
+            for (const r of ROUNDS) {
+              const key = `${t.id}-${r.id}`;
+              const result = await setShared(STORAGE_PREFIX + key, JSON.stringify({}));
+              if (!result) throw new Error(`Fehler bei ${t.label} (${r.label})`);
+            }
+          }
+          await load(team, round);
+          if (view === "mine") await loadMine();
+          if (view === "club") await loadClub();
+          await logChange(authUser.email, "ALLE Mannschaften", "Hin- & Rückrunde", "Kompletter Reset aller Rückmeldungen (Admin)");
+          showToast("Alle Rückmeldungen für alle Mannschaften wurden zurückgesetzt.");
+        } catch (e) {
+          showToast(`Zurücksetzen fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
+        } finally {
+          setResetAllLoading(false);
+        }
+      }
+    );
   };
 
   const startEdit = (m) => {
@@ -1623,6 +1649,83 @@ export default function Einsatzplan() {
           </div>
         </div>
       </header>
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[60] max-w-[90vw] bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-900 text-sm font-semibold px-4 py-2.5 rounded-lg shadow-lg text-center">
+          {toast}
+        </div>
+      )}
+
+      {/* Bestätigungs-Dialog (statt window.confirm) */}
+      {confirmModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-5">
+          <div className="bg-white dark:bg-stone-900 rounded-lg p-5 w-full max-w-sm">
+            <p className="text-sm text-stone-700 dark:text-stone-200 mb-4">{confirmModal.message}</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="flex-1 text-sm font-bold py-2.5 rounded-lg border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => {
+                  const fn = confirmModal.onConfirm;
+                  setConfirmModal(null);
+                  fn && fn();
+                }}
+                className="flex-1 text-sm font-bold py-2.5 rounded-lg bg-red-600 text-white"
+              >
+                Bestätigen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Text-Bestätigungs-Dialog (statt window.prompt) */}
+      {promptModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-5">
+          <div className="bg-white dark:bg-stone-900 rounded-lg p-5 w-full max-w-sm">
+            <p className="text-sm text-stone-700 dark:text-stone-200 mb-3 whitespace-pre-line">{promptModal.message}</p>
+            <p className="text-xs text-stone-400 dark:text-stone-500 mb-2">
+              Zum Bestätigen <strong className="text-stone-600 dark:text-stone-300">„{promptModal.expected}"</strong> eintippen:
+            </p>
+            <input
+              type="text"
+              autoFocus
+              value={promptInput}
+              onChange={(e) => setPromptInput(e.target.value)}
+              className="w-full rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm text-stone-800 dark:text-stone-100 mb-4"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setPromptModal(null);
+                  setPromptInput("");
+                }}
+                className="flex-1 text-sm font-bold py-2.5 rounded-lg border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => {
+                  if (promptInput !== promptModal.expected) return;
+                  const fn = promptModal.onConfirm;
+                  setPromptModal(null);
+                  setPromptInput("");
+                  fn && fn();
+                }}
+                disabled={promptInput !== promptModal.expected}
+                className="flex-1 text-sm font-bold py-2.5 rounded-lg bg-red-600 text-white disabled:opacity-40"
+              >
+                Bestätigen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Login-Modal */}
       {showLogin && (
