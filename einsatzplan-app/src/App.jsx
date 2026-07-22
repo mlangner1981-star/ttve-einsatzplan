@@ -1007,9 +1007,9 @@ export default function Einsatzplan() {
   }, [allTeams]);
 
   useEffect(() => {
-    loadClub();
+    if (view === "club") loadClub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [view]);
 
   const clubByDate = useMemo(() => {
     const now = new Date();
