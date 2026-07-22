@@ -818,6 +818,7 @@ export default function Einsatzplan() {
 
   const [crossData, setCrossData] = useState({});
   const [myNames, setMyNames] = useState([]);
+  const [myTeamNames, setMyTeamNames] = useState({}); // teamId -> mein Name in genau dieser Mannschaft
   const [mineLoading, setMineLoading] = useState(false);
   const [mineError, setMineError] = useState("");
 
@@ -826,10 +827,14 @@ export default function Einsatzplan() {
     setMineError("");
     const nextCross = {};
     const names = new Set();
+    const teamNames = {};
     try {
       for (const t of allTeams) {
         const saved = window.localStorage.getItem(`ttve-me-${t.id}`);
-        if (saved && t.players.includes(saved)) names.add(saved);
+        if (saved && t.players.includes(saved)) {
+          names.add(saved);
+          teamNames[t.id] = saved;
+        }
       }
       // Wir müssen alle Mannschaften laden (nicht nur die eigenen), da man auch
       // als Ersatzspieler in einer fremden Mannschaft eingeplant sein kann.
@@ -851,6 +856,7 @@ export default function Einsatzplan() {
       }
       setCrossData(nextCross);
       setMyNames(Array.from(names));
+      setMyTeamNames(teamNames);
     } catch (e) {
       setMineError(`Laden fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
     } finally {
@@ -876,15 +882,18 @@ export default function Einsatzplan() {
         const entry = data[m.id] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
         const avail = entry.availability || {};
         const ersatzListe = entry.ersatzSpieler || [];
-        const playingName = myNames.find((n) => t.players.includes(n) && avail[n] === "yes");
-        if (playingName) {
+        // "Ich spiele" zählt nur in der Mannschaft, in der ich mich auch
+        // wirklich selbst als "Ich bin" ausgewählt habe – nicht einfach bei
+        // jedem Team, in dessen Kader zufällig derselbe Name auftaucht.
+        const myNameHere = myTeamNames[t.id];
+        if (myNameHere && avail[myNameHere] === "yes") {
           items.push({
             team: t,
             round: r,
             match: m,
             role: "spielt",
-            meName: playingName,
-            myStatus: avail[playingName],
+            meName: myNameHere,
+            myStatus: avail[myNameHere],
             notiz: entry.notiz,
           });
           return;
@@ -897,7 +906,7 @@ export default function Einsatzplan() {
     });
     items.sort((a, b) => matchToDate(a.match) - matchToDate(b.match));
     return items;
-  }, [crossData, myNames]);
+  }, [crossData, myNames, myTeamNames]);
 
   const setMineStatus = async (item, value) => {
     const key = `${item.team.id}-${item.round}`;
