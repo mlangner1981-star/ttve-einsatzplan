@@ -1004,47 +1004,6 @@ export default function Einsatzplan() {
     return entries;
   }, [clubData]);
 
-  // Ampel pro Mannschaft: Status des jeweils nächsten anstehenden Spiels.
-  const teamAmpel = useMemo(() => {
-    const now = new Date();
-    const result = {};
-    allTeams.forEach((t) => {
-      let next = null;
-      ROUNDS.forEach((r) => {
-        const key = `${t.id}-${r.id}`;
-        const cd = clubData[key];
-        if (!cd) return;
-        cd.matches.forEach((m) => {
-          if (!m.date) return;
-          const d = matchToDate(m);
-          if (d < new Date(now.getTime() - 3 * 3600 * 1000)) return;
-          if (!next || d < matchToDate(next.match)) next = { match: m, data: cd.data };
-        });
-      });
-      if (!next) {
-        result[t.id] = null;
-        return;
-      }
-      const entry = next.data[next.match.id] || { availability: {}, ersatzSpieler: [] };
-      const avail = entry.availability || {};
-      const s = computeMatchStatus(t.players, avail, t.requiredPlayers, entry.ersatzSpieler);
-      let color = "yellow";
-      let label = "";
-      if (s.warning) {
-        color = "red";
-        label = `${s.no.length} Absage${s.no.length === 1 ? "" : "n"}`;
-      } else if (s.filled) {
-        color = "green";
-        label = "vollständig";
-      } else {
-        color = "yellow";
-        label = `${t.requiredPlayers - s.confirmedCount} fehlt`;
-      }
-      result[t.id] = { color, label, match: next.match };
-    });
-    return result;
-  }, [clubData, allTeams]);
-
   // Vereins-Dashboard: Zahlen für heutige Spiele über alle Mannschaften.
   const clubTodayStats = useMemo(() => {
     const today = todayDMY();
@@ -1598,18 +1557,6 @@ export default function Einsatzplan() {
               className="w-full flex items-center gap-2 bg-emerald-800 hover:bg-emerald-700 text-white text-sm font-bold px-3 py-2.5 rounded-lg"
             >
               <Users size={15} />
-              {teamAmpel[team.id] && (
-                <span
-                  className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-                    teamAmpel[team.id].color === "green"
-                      ? "bg-green-400"
-                      : teamAmpel[team.id].color === "red"
-                      ? "bg-red-400"
-                      : "bg-amber-400"
-                  }`}
-                  title={teamAmpel[team.id].label}
-                />
-              )}
               <span className="flex-1 text-left">{team.label}</span>
               <ChevronDown size={15} className={teamPickerOpen ? "rotate-180 transition-transform" : "transition-transform"} />
             </button>
@@ -1622,30 +1569,13 @@ export default function Einsatzplan() {
                       setTeamId(t.id);
                       setTeamPickerOpen(false);
                     }}
-                    className={`w-full flex items-center gap-2 text-left px-4 py-2.5 text-sm border-b border-stone-100 dark:border-stone-800 last:border-0 ${
+                    className={`w-full text-left px-4 py-2.5 text-sm border-b border-stone-100 dark:border-stone-800 last:border-0 ${
                       t.id === teamId
                         ? "bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold"
                         : "text-stone-700 dark:text-stone-200"
                     }`}
                   >
-                    {teamAmpel[t.id] ? (
-                      <span
-                        className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-                          teamAmpel[t.id].color === "green"
-                            ? "bg-green-500"
-                            : teamAmpel[t.id].color === "red"
-                            ? "bg-red-500"
-                            : "bg-amber-400"
-                        }`}
-                        title={teamAmpel[t.id].label}
-                      />
-                    ) : (
-                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-stone-300 dark:bg-stone-600" title="Kein anstehendes Spiel" />
-                    )}
-                    <span className="flex-1">{t.label}</span>
-                    {teamAmpel[t.id] && (
-                      <span className="text-[10px] text-stone-400 dark:text-stone-500 font-normal">{teamAmpel[t.id].label}</span>
-                    )}
+                    {t.label}
                   </button>
                 ))}
               </div>
@@ -1884,26 +1814,26 @@ export default function Einsatzplan() {
           )}
 
           {!clubLoading && !clubError && (
-            <div className="rounded-xl bg-gradient-to-br from-stone-800 to-stone-900 dark:from-emerald-950 dark:to-stone-950 text-white p-4">
-              <div className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2.5">
-                Vereins-Dashboard · Heute ({todayDMY()})
+            <div>
+              <div className="text-xs font-bold text-stone-400 dark:text-stone-500 uppercase tracking-widest mb-2">
+                Heute · {todayDMY()}
               </div>
-              <div className="grid grid-cols-4 gap-2 text-center">
-                <div>
-                  <div className="text-2xl font-black">{clubTodayStats.matchCount}</div>
-                  <div className="text-[10px] text-stone-400 leading-tight mt-0.5">Spiele heute</div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-3 text-center">
+                  <div className="text-2xl font-black text-stone-800 dark:text-stone-100">{clubTodayStats.matchCount}</div>
+                  <div className="text-[10px] text-stone-500 dark:text-stone-400 leading-tight mt-0.5">Spiele heute</div>
                 </div>
-                <div>
-                  <div className="text-2xl font-black text-emerald-400">{clubTodayStats.playersInAction}</div>
-                  <div className="text-[10px] text-stone-400 leading-tight mt-0.5">Spieler im Einsatz</div>
+                <div className="rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/40 p-3 text-center">
+                  <div className="text-2xl font-black text-emerald-700 dark:text-emerald-400">{clubTodayStats.playersInAction}</div>
+                  <div className="text-[10px] text-emerald-700 dark:text-emerald-400 leading-tight mt-0.5">Spieler im Einsatz</div>
                 </div>
-                <div>
-                  <div className="text-2xl font-black text-amber-400">{clubTodayStats.openReplies}</div>
-                  <div className="text-[10px] text-stone-400 leading-tight mt-0.5">offene Rückmeldungen</div>
+                <div className="rounded-lg border border-sky-200 dark:border-sky-900 bg-sky-50 dark:bg-sky-950/40 p-3 text-center">
+                  <div className="text-2xl font-black text-sky-700 dark:text-sky-400">{clubTodayStats.openReplies}</div>
+                  <div className="text-[10px] text-sky-700 dark:text-sky-400 leading-tight mt-0.5">offene Rückmeldungen</div>
                 </div>
-                <div>
-                  <div className="text-2xl font-black text-red-400">{clubTodayStats.needSubs}</div>
-                  <div className="text-[10px] text-stone-400 leading-tight mt-0.5">Ersatz gesucht</div>
+                <div className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-3 text-center">
+                  <div className="text-2xl font-black text-red-700 dark:text-red-400">{clubTodayStats.needSubs}</div>
+                  <div className="text-[10px] text-red-700 dark:text-red-400 leading-tight mt-0.5">Ersatz gesucht</div>
                 </div>
               </div>
             </div>
