@@ -323,6 +323,47 @@ async function logChange(who, teamLabel, roundLabel, action) {
 const emptyRoundData = (matches) =>
   Object.fromEntries(matches.map((m) => [m.id, { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] }]));
 
+// Startwerte aus der bisherigen Excel-Abstimmungsliste (Spielplan_26_27_Vorrunde.xlt).
+// Werden nur verwendet, solange in Firestore noch KEINE echten Rückmeldungen für
+// diesen Spieltag gespeichert sind – sobald jemand in der App etwas ändert, gilt
+// ab dann ausschließlich der echte, gespeicherte Stand.
+const SEED_AVAILABILITY = {
+  "t1:hin": {
+    1: { availability: { "Matthias Christen": "yes", "Marcel Brunner": "yes", "Benjamin Tullmin": "yes", "David Ender": "yes", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
+    2: { availability: { "Matthias Christen": "yes", "Marcel Brunner": "unclear", "Benjamin Tullmin": "unclear", "David Ender": "yes", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
+    3: { availability: { "Matthias Christen": "yes", "Marcel Brunner": "yes", "Benjamin Tullmin": "yes", "David Ender": "yes", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
+    4: { availability: { "Matthias Christen": "yes", "Marcel Brunner": "unclear", "Benjamin Tullmin": "unclear", "David Ender": "unclear", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
+    5: { availability: { "Matthias Christen": "yes", "Marcel Brunner": "yes", "Benjamin Tullmin": "yes", "David Ender": "unclear", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
+    6: { availability: { "Matthias Christen": "yes", "Marcel Brunner": "yes", "Benjamin Tullmin": "yes", "David Ender": "yes", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
+    7: { availability: { "Matthias Christen": "yes", "Marcel Brunner": "yes", "Benjamin Tullmin": "yes", "David Ender": "unclear", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
+    8: { availability: { "Marcel Brunner": "yes", "Benjamin Tullmin": "yes", "David Ender": "yes", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
+    9: { availability: { "Matthias Christen": "yes", "Marcel Brunner": "yes", "Benjamin Tullmin": "yes", "David Ender": "unclear", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
+    10: { availability: { "Matthias Christen": "yes", "Marcel Brunner": "unclear", "Benjamin Tullmin": "unclear", "David Ender": "unclear", "Thomas Fischer": "yes", "Sven Brinkmann": "request", "Tim Schrangs": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
+  },
+  "t2:hin": {
+    1: { availability: { "Marcel Langner": "no", "Thomas Smit": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
+    2: { availability: { "Marcel Langner": "yes", "Thomas Smit": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
+    3: { availability: { "Marcel Langner": "yes", "Thomas Smit": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
+    4: { availability: { "Marcel Langner": "no", "Thomas Smit": "no" }, notiz: "", ersatzSpieler: [], fotos: [] },
+    5: { availability: { "Marcel Langner": "yes", "Thomas Smit": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
+    6: { availability: { "Marcel Langner": "yes", "Thomas Smit": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
+    7: { availability: { "Marcel Langner": "no", "Thomas Smit": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
+    8: { availability: { "Marcel Langner": "no", "Thomas Smit": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
+    9: { availability: { "Marcel Langner": "yes", "Thomas Smit": "yes" }, notiz: "", ersatzSpieler: [], fotos: [] },
+  },
+};
+
+function seededEmptyRoundData(key, matches) {
+  const base = emptyRoundData(matches);
+  const seed = SEED_AVAILABILITY[key];
+  if (!seed) return base;
+  const merged = { ...base };
+  Object.entries(seed).forEach(([matchId, entry]) => {
+    if (merged[matchId]) merged[matchId] = { ...merged[matchId], ...entry };
+  });
+  return merged;
+}
+
 // Reihenfolge der Mannschaften für die "obere Mannschaft"-Regel bei Ersatzspielern:
 // Ersatz darf aus jeder Mannschaft außer der eigenen und der direkt darüber
 // gemeldeten Mannschaft kommen (übliche Höherspielrecht-Regel).
@@ -713,7 +754,7 @@ export default function Einsatzplan() {
         const parsed = JSON.parse(dataResult.value);
         setData({ ...emptyRoundData(liveMatches), ...parsed });
       } else {
-        setData(emptyRoundData(liveMatches));
+        setData(seededEmptyRoundData(t.id + ":" + r, liveMatches));
       }
       setStatus("ready");
     } catch (e) {
@@ -870,7 +911,7 @@ export default function Einsatzplan() {
           const liveData =
             dataResult && dataResult.value
               ? { ...emptyRoundData(liveMatches), ...JSON.parse(dataResult.value) }
-              : emptyRoundData(liveMatches);
+              : seededEmptyRoundData(key, liveMatches);
           nextCross[key] = { matches: liveMatches, data: liveData, team: t, round: r.id };
         }
       }
@@ -994,7 +1035,7 @@ export default function Einsatzplan() {
           const liveData =
             dataResult && dataResult.value
               ? { ...emptyRoundData(liveMatches), ...JSON.parse(dataResult.value) }
-              : emptyRoundData(liveMatches);
+              : seededEmptyRoundData(key, liveMatches);
           next[key] = { matches: liveMatches, data: liveData, team: t, round: r.id };
         }
       }
@@ -2098,6 +2139,42 @@ export default function Einsatzplan() {
       {/* Meine Spiele (teamübergreifend) */}
       {view === "mine" && (
         <main className="max-w-2xl mx-auto px-5 mt-4 flex flex-col gap-3">
+          {Object.keys(myTeamNames).length > 0 && (
+            <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 p-3">
+              <div className="text-xs font-bold text-amber-800 dark:text-amber-400 mb-2">
+                Deine Auswahl „Ich bin" ist aktuell in {Object.keys(myTeamNames).length} Mannschaft
+                {Object.keys(myTeamNames).length > 1 ? "en" : ""} hinterlegt (auf diesem Gerät):
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(myTeamNames).map(([tId, name]) => {
+                  const t = allTeams.find((x) => x.id === tId);
+                  return (
+                    <span
+                      key={tId}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full bg-white dark:bg-stone-800 border border-amber-300 dark:border-amber-800 text-stone-700 dark:text-stone-200"
+                    >
+                      {t?.label || tId}: {name}
+                      <button
+                        onClick={() => {
+                          window.localStorage.removeItem(`ttve-me-${tId}`);
+                          if (tId === teamId) setMe("");
+                          loadMine();
+                        }}
+                        className="text-amber-600 hover:text-red-600 dark:text-amber-400 dark:hover:text-red-400"
+                        title={`Auswahl bei ${t?.label || tId} entfernen`}
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-2">
+                Nicht die richtige Mannschaft dabei? Mit dem X entfernen – falsche Spiele
+                verschwinden dann sofort aus der Liste unten.
+              </p>
+            </div>
+          )}
           {mineLoading && (
             <div className="flex items-center justify-center gap-2 text-sm text-stone-400 dark:text-stone-500 py-10">
               <Loader2 size={14} className="animate-spin" /> Lädt deine Spiele aus allen Mannschaften…
