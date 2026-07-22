@@ -352,23 +352,26 @@ function initials(name) {
   return name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
 }
 
-function computeMatchStatus(players, avail, requiredPlayers) {
+function computeMatchStatus(players, avail, requiredPlayers, ersatzSpieler) {
   const no = players.filter((p) => avail[p] === "no");
   const yes = players.filter((p) => avail[p] === "yes");
   const unsicher = players.filter((p) => avail[p] === "request" || avail[p] === "unclear");
   const open = players.filter((p) => !avail[p]);
   const teamSize = players.length;
+  const ersatzCount = (ersatzSpieler || []).length;
+  // Zugesagte Ersatzspieler zählen wie eine Zusage für den Spieltag mit.
+  const confirmedCount = yes.length + ersatzCount;
 
   let warning = null;
-  if (teamSize - no.length < requiredPlayers) {
-    warning = `Nur ${teamSize - no.length} Spieler fest zugesagt – externer Ersatz nötig!`;
+  if (teamSize - no.length + ersatzCount < requiredPlayers) {
+    warning = `Nur ${teamSize - no.length + ersatzCount} Spieler fest zugesagt – externer Ersatz nötig!`;
   }
   const complete = open.length === 0 && unsicher.length === 0 && !warning;
-  // "filled": die Mannschaft ist einsatzbereit, sobald genug Spieler aktiv
-  // zugesagt haben (>= requiredPlayers) – unabhängig davon, ob der Rest des
-  // Kaders schon reagiert hat.
-  const filled = yes.length >= requiredPlayers;
-  return { no, yes, unsicher, open, warning, complete, filled, requiredPlayers };
+  // "filled": die Mannschaft ist einsatzbereit, sobald genug Spieler (inkl.
+  // bestätigter Ersatzspieler) aktiv zugesagt haben – unabhängig davon, ob
+  // der Rest des Kaders schon reagiert hat.
+  const filled = confirmedCount >= requiredPlayers;
+  return { no, yes, unsicher, open, warning, complete, filled, requiredPlayers, ersatzCount, confirmedCount };
 }
 
 function pad(n) {
@@ -961,8 +964,8 @@ export default function Einsatzplan() {
         if (d < new Date(now.getTime() - 3 * 3600 * 1000)) return;
         const entry = data[m.id] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
         const avail = entry.availability || {};
-        const s = computeMatchStatus(t.players, avail, t.requiredPlayers);
-        const fest = t.players.length - s.open.length - s.unsicher.length - s.no.length;
+        const s = computeMatchStatus(t.players, avail, t.requiredPlayers, entry.ersatzSpieler);
+        const fest = s.confirmedCount;
         if (!map.has(m.date)) map.set(m.date, []);
         map.get(m.date).push({ team: t, round: r, match: m, s, fest });
       });
@@ -2050,7 +2053,7 @@ export default function Einsatzplan() {
         {dashboardMatch && (() => {
           const dEntry = data[dashboardMatch.id] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
           const dAvail = dEntry.availability || {};
-          const dStats = computeMatchStatus(team.players, dAvail, team.requiredPlayers);
+          const dStats = computeMatchStatus(team.players, dAvail, team.requiredPlayers, dEntry.ersatzSpieler);
           return (
             <div className="rounded-xl bg-gradient-to-br from-emerald-700 to-emerald-800 text-white p-4 shadow-sm">
               <div className="flex items-center justify-between mb-2">
@@ -2064,7 +2067,8 @@ export default function Einsatzplan() {
               <div className="text-base font-bold mb-3">{dashboardMatch.opponent}</div>
               <div className="flex items-center justify-between text-sm">
                 <span className="font-semibold">
-                  {dStats.yes.length}/{team.requiredPlayers} Spieler bestätigt
+                  {dStats.confirmedCount}/{team.requiredPlayers} Spieler bestätigt
+                  {dStats.ersatzCount > 0 && <span className="text-emerald-200 font-normal"> ({dStats.ersatzCount} Ersatz)</span>}
                 </span>
                 {dStats.open.length > 0 && (
                   <span className="text-emerald-200 text-xs">Noch offen: {dStats.open.join(", ")}</span>
@@ -2085,7 +2089,12 @@ export default function Einsatzplan() {
           const avail = entry.availability || {};
           const players = team.players;
 
-          const { no, unsicher, open, warning, filled, yes } = computeMatchStatus(players, avail, team.requiredPlayers);
+          const { no, unsicher, open, warning, filled, yes, ersatzCount, confirmedCount } = computeMatchStatus(
+            players,
+            avail,
+            team.requiredPlayers,
+            entry.ersatzSpieler
+          );
 
           const myStatus = me ? avail[me] : undefined;
           const isEditing = editingId === m.id;
@@ -2333,7 +2342,8 @@ export default function Einsatzplan() {
 
                 {filled && (
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-900 rounded px-2.5 py-1.5 mb-2">
-                    <Check size={13} /> Mannschaft komplett ({yes.length}/{team.requiredPlayers} zugesagt)
+                    <Check size={13} /> Mannschaft komplett ({confirmedCount}/{team.requiredPlayers} zugesagt
+                    {ersatzCount > 0 && `, davon ${ersatzCount} Ersatz`})
                   </div>
                 )}
 
@@ -2518,8 +2528,8 @@ export default function Einsatzplan() {
             {matches.map((m, idx) => {
               const entry = data[m.id] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
               const avail = entry.availability || {};
-              const s = computeMatchStatus(team.players, avail, team.requiredPlayers);
-              const fest = team.players.length - s.open.length - s.unsicher.length - s.no.length;
+              const s = computeMatchStatus(team.players, avail, team.requiredPlayers, entry.ersatzSpieler);
+              const fest = s.confirmedCount;
 
               return (
                 <div key={m.id} className="px-4 py-3">
