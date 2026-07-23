@@ -1140,19 +1140,6 @@ export default function Einsatzplan() {
     else window.localStorage.removeItem(`ttve-me-${teamId}`);
   };
 
-  const clearAllMyIdentities = () => {
-    askConfirm(
-      "Das entfernt \"Ich bin\" für ALLE Mannschaften auf diesem Gerät (nicht nur die aktuelle). Fortfahren?",
-      () => {
-        allTeams.forEach((t) => window.localStorage.removeItem(`ttve-me-${t.id}`));
-        setMe("");
-        setMyTeamNames({});
-        setMyNames([]);
-        showToast("Alle Auswahlen auf diesem Gerät wurden entfernt.");
-      }
-    );
-  };
-
   const persist = async (next) => {
     setData(next);
     setStatus("saving");
@@ -1829,12 +1816,6 @@ export default function Einsatzplan() {
             </select>
           </div>
         </div>
-        <button
-          onClick={clearAllMyIdentities}
-          className="text-[11px] text-stone-400 dark:text-stone-500 underline underline-offset-2 mt-1.5 mb-0.5"
-        >
-          Alle „Ich bin"-Auswahlen auf diesem Gerät löschen (alle Mannschaften)
-        </button>
         {!me && (
           <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-900 rounded px-3 py-2 mt-2">
             Wähle oben deinen Namen, damit du bei den Spielen zu- oder absagen kannst.
