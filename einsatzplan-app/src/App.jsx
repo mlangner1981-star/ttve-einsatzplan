@@ -525,6 +525,27 @@ function blankMatch() {
 }
 
 // Konfetti-Overlay: spielt kurz ab, wenn triggerKey sich ändert.
+// Skeleton-Platzhalter statt Spinner, während Spieldaten laden.
+function MatchSkeleton({ count = 3 }) {
+  return (
+    <div className="flex flex-col gap-3">
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-4 animate-pulse"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="h-3 w-24 bg-stone-200 dark:bg-stone-700 rounded" />
+            <div className="h-4 w-14 bg-stone-200 dark:bg-stone-700 rounded-full" />
+          </div>
+          <div className="h-4 w-40 bg-stone-200 dark:bg-stone-700 rounded mb-2" />
+          <div className="h-3 w-56 bg-stone-100 dark:bg-stone-800 rounded" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Confetti({ triggerKey }) {
   const [particles, setParticles] = useState([]);
   useEffect(() => {
@@ -641,6 +662,12 @@ export default function Einsatzplan() {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [teamPickerOpen, setTeamPickerOpen] = useState(false);
+
+  const [showSplash, setShowSplash] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setShowSplash(false), 900);
+    return () => clearTimeout(t);
+  }, []);
 
   const [dark, setDark] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -1550,6 +1577,19 @@ export default function Einsatzplan() {
   return (
     <div className={dark ? "dark" : ""}>
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950 pb-16 transition-colors">
+      <div
+        className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-emerald-900 transition-opacity duration-500 ${
+          showSplash ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        }`}
+      >
+        <img src={LOGO_DATA_URI} alt="TVE Logo" className="w-24 h-24 rounded-full bg-white p-1 shadow-lg animate-pulse" />
+        <div className="mt-4 text-white font-black text-xl tracking-tight uppercase">Einsatzplan</div>
+        <div className="mt-1 text-emerald-300 text-xs">TTV Einigkeit Süchteln-Vorst</div>
+      </div>
+      <style>{`
+        @keyframes ttve-fadein-kf { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        .ttve-fadein { animation: ttve-fadein-kf 0.25s ease-out; }
+      `}</style>
       <Confetti triggerKey={confettiKey} />
       {welcomeName && (
         <div className="bg-emerald-600 text-white text-sm font-bold text-center py-2 px-4">
@@ -1843,8 +1883,9 @@ export default function Einsatzplan() {
       </div>
 
       {/* View toggle + Kalender-Export + Refresh */}
+      <div className="sticky top-0 z-30 bg-stone-50 dark:bg-stone-950 pt-2 pb-2 -mx-0 shadow-sm">
       <div className="max-w-2xl mx-auto px-5">
-        <div className="flex items-center gap-2 mt-3">
+        <div className="flex items-center gap-2">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 bg-stone-200 dark:bg-stone-800 rounded-lg p-1 flex-1">
             <button
               onClick={() => setView("mine")}
@@ -1905,6 +1946,7 @@ export default function Einsatzplan() {
           )}
         </div>
       </div>
+      </div>
 
       {/* Status bar */}
       <div className="max-w-2xl mx-auto px-5">
@@ -1946,12 +1988,8 @@ export default function Einsatzplan() {
 
       {/* Vereinsübersicht: alle Mannschaften nach Datum, Zusagen-Status */}
       {view === "club" && (
-        <main className="max-w-2xl mx-auto px-5 mt-4 flex flex-col gap-5">
-          {clubLoading && (
-            <div className="flex items-center justify-center gap-2 text-sm text-stone-400 dark:text-stone-500 py-10">
-              <Loader2 size={14} className="animate-spin" /> Lädt alle Mannschaften…
-            </div>
-          )}
+        <main className="max-w-2xl mx-auto px-5 mt-4 flex flex-col gap-5 ttve-fadein">
+          {clubLoading && <MatchSkeleton count={4} />}
           {clubError && (
             <div className="flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded px-3 py-2">
               <AlertTriangle size={14} /> {clubError}
@@ -2133,12 +2171,8 @@ export default function Einsatzplan() {
 
       {/* Meine Spiele: nur eigene "Ich spiele"-Zusagen + Ersatzspieler-Einsätze */}
       {view === "mine" && (
-        <main className="max-w-2xl mx-auto px-5 mt-4 flex flex-col gap-3">
-          {mineLoading && (
-            <div className="flex items-center justify-center gap-2 text-sm text-stone-400 dark:text-stone-500 py-10">
-              <Loader2 size={14} className="animate-spin" /> Lädt deine Spiele…
-            </div>
-          )}
+        <main className="max-w-2xl mx-auto px-5 mt-4 flex flex-col gap-3 ttve-fadein">
+          {mineLoading && <MatchSkeleton count={3} />}
           {mineError && (
             <div className="flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded px-3 py-2">
               <AlertTriangle size={14} /> {mineError}
@@ -2208,7 +2242,7 @@ export default function Einsatzplan() {
 
       {/* Match cards */}
       {view === "cards" && (
-      <main className="max-w-2xl mx-auto px-5 mt-4 flex flex-col gap-3">
+      <main className="max-w-2xl mx-auto px-5 mt-4 flex flex-col gap-3 ttve-fadein">
         {dashboardMatch && (() => {
           const dEntry = data[dashboardMatch.id] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
           const dAvail = dEntry.availability || {};
@@ -2680,7 +2714,7 @@ export default function Einsatzplan() {
 
       {/* Mannschaftsführeransicht */}
       {view === "leader" && (
-        <main className="max-w-2xl mx-auto px-5 mt-4">
+        <main className="max-w-2xl mx-auto px-5 mt-4 ttve-fadein">
           {matches.length === 0 ? (
             <div className="text-center text-sm text-stone-400 dark:text-stone-500 py-10">
               Noch keine Spiele für die {ROUNDS.find((r) => r.id === round).label} eingetragen.
