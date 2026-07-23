@@ -13,6 +13,9 @@ import {
   CircleDashed,
   Navigation,
   Users,
+  ClipboardList,
+  Building2,
+  Inbox,
   CalendarDays,
   CalendarPlus,
   Sun,
@@ -327,6 +330,22 @@ const emptyRoundData = (matches) =>
 // Ersatz darf aus jeder Mannschaft außer der eigenen und der direkt darüber
 // gemeldeten Mannschaft kommen (übliche Höherspielrecht-Regel).
 const TEAM_ORDER = ["t1", "t2", "t3", "t4", "t5", "t6"];
+
+// Dezente, feste Akzentfarbe je Mannschaft – nur zur schnelleren optischen
+// Orientierung in der Vereinsübersicht (keine Bedeutung, rein visuell).
+const TEAM_ACCENTS = {
+  t1: "border-l-emerald-500",
+  t2: "border-l-sky-500",
+  t3: "border-l-amber-500",
+  t4: "border-l-violet-500",
+  t5: "border-l-rose-500",
+  t6: "border-l-cyan-500",
+  s1: "border-l-lime-500",
+  s2: "border-l-orange-500",
+};
+function teamAccent(teamId) {
+  return TEAM_ACCENTS[teamId] || "border-l-stone-300 dark:border-l-stone-600";
+}
 const SENIOR_ORDER = ["s1", "s2"];
 
 function upperTeamId(teamId) {
@@ -1829,43 +1848,43 @@ export default function Einsatzplan() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 bg-stone-200 dark:bg-stone-800 rounded-lg p-1 flex-1">
             <button
               onClick={() => setView("mine")}
-              className={`text-[11px] font-bold py-1.5 rounded-md px-1 ${
+              className={`flex items-center justify-center gap-1 text-[11px] font-bold py-1.5 rounded-md px-1 ${
                 view === "mine"
                   ? "bg-white dark:bg-stone-700 text-stone-800 dark:text-stone-100 shadow-sm"
                   : "text-stone-500 dark:text-stone-400"
               }`}
             >
-              Meine Spiele
+              <User size={12} className="flex-shrink-0" /> <span className="truncate">Meine Spiele</span>
             </button>
             <button
               onClick={() => setView("cards")}
-              className={`text-[11px] font-bold py-1.5 rounded-md px-1 truncate ${
+              className={`flex items-center justify-center gap-1 text-[11px] font-bold py-1.5 rounded-md px-1 ${
                 view === "cards"
                   ? "bg-white dark:bg-stone-700 text-stone-800 dark:text-stone-100 shadow-sm"
                   : "text-stone-500 dark:text-stone-400"
               }`}
             >
-              {team.label}
+              <Users size={12} className="flex-shrink-0" /> <span className="truncate">{team.label}</span>
             </button>
             <button
               onClick={() => setView("leader")}
-              className={`text-[11px] font-bold py-1.5 rounded-md px-1 ${
+              className={`flex items-center justify-center gap-1 text-[11px] font-bold py-1.5 rounded-md px-1 ${
                 view === "leader"
                   ? "bg-white dark:bg-stone-700 text-stone-800 dark:text-stone-100 shadow-sm"
                   : "text-stone-500 dark:text-stone-400"
               }`}
             >
-              Gesamt
+              <ClipboardList size={12} className="flex-shrink-0" /> <span className="truncate">Gesamt</span>
             </button>
             <button
               onClick={() => setView("club")}
-              className={`text-[11px] font-bold py-1.5 rounded-md px-1 ${
+              className={`flex items-center justify-center gap-1 text-[11px] font-bold py-1.5 rounded-md px-1 ${
                 view === "club"
                   ? "bg-white dark:bg-stone-700 text-stone-800 dark:text-stone-100 shadow-sm"
                   : "text-stone-500 dark:text-stone-400"
               }`}
             >
-              Verein
+              <Building2 size={12} className="flex-shrink-0" /> <span className="truncate">Verein</span>
             </button>
           </div>
           <button
@@ -2031,7 +2050,8 @@ export default function Einsatzplan() {
           )}
 
           {!clubLoading && !clubError && clubByDate.length === 0 && (
-            <div className="text-center text-sm text-stone-400 dark:text-stone-500 py-10">
+            <div className="flex flex-col items-center text-center text-sm text-stone-400 dark:text-stone-500 py-10">
+              <Inbox size={26} className="mb-2 text-stone-300 dark:text-stone-600" />
               Keine anstehenden Spiele gefunden.
             </div>
           )}
@@ -2056,7 +2076,9 @@ export default function Einsatzplan() {
                       setRound(r);
                       setView("cards");
                     }}
-                    className={`text-left rounded-lg border px-3 py-2.5 flex items-center gap-3 ${
+                    className={`text-left rounded-lg border border-l-4 px-3 py-2.5 flex items-center gap-3 ${teamAccent(
+                      t.id
+                    )} ${
                       s.warning
                         ? "border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40"
                         : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900"
@@ -2123,7 +2145,8 @@ export default function Einsatzplan() {
             </div>
           )}
           {!mineLoading && !mineError && mineUpcoming.length === 0 && (
-            <div className="text-center text-sm text-stone-400 dark:text-stone-500 py-10 px-4">
+            <div className="flex flex-col items-center text-center text-sm text-stone-400 dark:text-stone-500 py-10 px-4">
+              <Inbox size={26} className="mb-2 text-stone-300 dark:text-stone-600" />
               Keine Spiele gefunden. Hier erscheinen nur Spiele, bei denen du selbst „Ich spiele"
               angeklickt hast, oder bei denen dich jemand als Ersatzspieler für eine andere
               Mannschaft eingetragen hat.
@@ -2191,23 +2214,25 @@ export default function Einsatzplan() {
           const dAvail = dEntry.availability || {};
           const dStats = computeMatchStatus(team.players, dAvail, team.requiredPlayers, dEntry.ersatzSpieler);
           return (
-            <div className="rounded-xl bg-gradient-to-br from-emerald-700 to-emerald-800 text-white p-4 shadow-sm">
+            <div className="rounded-xl bg-white dark:bg-stone-900 border-2 border-emerald-500 dark:border-emerald-600 p-4 shadow-sm">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-200">Nächstes Spiel</span>
-                <span className="text-xs font-bold bg-white/15 px-2 py-0.5 rounded-full">{formatCountdown(dashboardMatch)}</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Nächstes Spiel</span>
+                <span className="text-xs font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-full">{formatCountdown(dashboardMatch)}</span>
               </div>
-              <div className="text-lg font-black leading-tight">
+              <div className="text-lg font-black leading-tight text-stone-800 dark:text-stone-100">
                 {dashboardMatch.weekday}, {dashboardMatch.date}
               </div>
-              <div className="text-emerald-100 text-sm mb-2">{dashboardMatch.time} Uhr · {dashboardMatch.home ? "Heim" : "Auswärts"}</div>
-              <div className="text-base font-bold mb-3">{dashboardMatch.opponent}</div>
+              <div className="text-stone-500 dark:text-stone-400 text-sm mb-2">
+                {dashboardMatch.time} Uhr · {dashboardMatch.home ? "Heim" : "Auswärts"}
+              </div>
+              <div className="text-base font-bold mb-3 text-stone-800 dark:text-stone-100">{dashboardMatch.opponent}</div>
               <div className="flex items-center justify-between text-sm">
-                <span className="font-semibold">
+                <span className="font-semibold text-emerald-700 dark:text-emerald-400">
                   {dStats.confirmedCount}/{team.requiredPlayers} Spieler bestätigt
-                  {dStats.ersatzCount > 0 && <span className="text-emerald-200 font-normal"> ({dStats.ersatzCount} Ersatz)</span>}
+                  {dStats.ersatzCount > 0 && <span className="text-violet-600 dark:text-violet-400 font-normal"> ({dStats.ersatzCount} Ersatz)</span>}
                 </span>
                 {dStats.open.length > 0 && (
-                  <span className="text-emerald-200 text-xs">Noch offen: {dStats.open.join(", ")}</span>
+                  <span className="text-stone-400 dark:text-stone-500 text-xs">Noch offen: {dStats.open.join(", ")}</span>
                 )}
               </div>
             </div>
@@ -2215,7 +2240,8 @@ export default function Einsatzplan() {
         })()}
 
         {matches.length === 0 && (
-          <div className="text-center text-sm text-stone-400 dark:text-stone-500 py-10">
+          <div className="flex flex-col items-center text-center text-sm text-stone-400 dark:text-stone-500 py-10">
+            <Inbox size={26} className="mb-2 text-stone-300 dark:text-stone-600" />
             Noch keine Spiele für die {ROUNDS.find((r) => r.id === round).label} eingetragen.
             {authUser && " Nutze unten „Spieltag hinzufügen“."}
           </div>
@@ -2389,7 +2415,7 @@ export default function Einsatzplan() {
                 <label className="text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wide mb-1.5 block">
                   Deine Rückmeldung
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <button
                     disabled={!me}
                     onClick={() => setMyAvailability(m.id, "yes")}
@@ -2734,7 +2760,7 @@ export default function Einsatzplan() {
 
       {authUser && (
         <div className="max-w-2xl mx-auto px-5 mt-8">
-          <div className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-4">
+          <div className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-5">
             <div className="flex items-center gap-1.5 text-xs font-bold text-red-700 dark:text-red-400 uppercase tracking-wide mb-1.5">
               <AlertTriangle size={13} /> Admin-Bereich
             </div>
@@ -2757,7 +2783,7 @@ export default function Einsatzplan() {
           </div>
 
           {/* Kaderverwaltung für die aktuell ausgewählte Mannschaft */}
-          <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-4 mt-3">
+          <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-5 mt-3">
             <div className="flex items-center gap-1.5 text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wide mb-2">
               <Users size={13} /> Kader verwalten – {team.label}
             </div>
@@ -2802,7 +2828,7 @@ export default function Einsatzplan() {
           </div>
 
           {/* Geburtstage verwalten */}
-          <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-4 mt-3">
+          <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-5 mt-3">
             <div className="flex items-center gap-1.5 text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wide mb-2">
               🎂 Geburtstage verwalten
             </div>
@@ -2831,7 +2857,7 @@ export default function Einsatzplan() {
           </div>
 
           {/* Neue Mannschaft anlegen */}
-          <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-4 mt-3">
+          <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-5 mt-3">
             <button
               onClick={() => setNewTeamOpen((o) => !o)}
               className="w-full flex items-center justify-between text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wide"
@@ -2911,7 +2937,7 @@ export default function Einsatzplan() {
             )}
           </div>
 
-          <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-4 mt-3">
+          <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-5 mt-3">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-1.5 text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wide">
                 <Shield size={13} /> Letzte Änderungen
