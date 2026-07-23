@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDocFromServer, setDoc } from "firebase/firestore";
 import { db } from "./firebase.js";
 
 const COLLECTION = "einsatzplan_shared_storage";
@@ -22,7 +22,10 @@ function withTimeout(promise, label) {
 export async function getShared(key) {
   if (!db) throw new Error("Firebase ist nicht konfiguriert.");
   const ref = doc(db, COLLECTION, key);
-  const snap = await withTimeout(getDoc(ref), "Laden");
+  // getDocFromServer statt getDoc: erzwingt IMMER eine frische Anfrage an
+  // Firestore, statt möglicherweise eine im Browser zwischengespeicherte
+  // (veraltete) Version derselben Sitzung zu verwenden.
+  const snap = await withTimeout(getDocFromServer(ref), "Laden");
   if (!snap.exists()) return null;
   return { key, value: snap.data().value, shared: true };
 }
