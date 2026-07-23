@@ -1817,7 +1817,17 @@ export default function Einsatzplan() {
       {/* View toggle + Kalender-Export + Refresh */}
       <div className="max-w-2xl mx-auto px-5">
         <div className="flex items-center gap-2 mt-3">
-          <div className="grid grid-cols-3 gap-1 bg-stone-200 dark:bg-stone-800 rounded-lg p-1 flex-1">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 bg-stone-200 dark:bg-stone-800 rounded-lg p-1 flex-1">
+            <button
+              onClick={() => setView("mine")}
+              className={`text-[11px] font-bold py-1.5 rounded-md px-1 ${
+                view === "mine"
+                  ? "bg-white dark:bg-stone-700 text-stone-800 dark:text-stone-100 shadow-sm"
+                  : "text-stone-500 dark:text-stone-400"
+              }`}
+            >
+              Meine Spiele
+            </button>
             <button
               onClick={() => setView("cards")}
               className={`text-[11px] font-bold py-1.5 rounded-md px-1 truncate ${
@@ -2086,6 +2096,80 @@ export default function Einsatzplan() {
                 ))}
               </div>
             </section>
+          ))}
+        </main>
+      )}
+
+      {/* Meine Spiele: nur eigene "Ich spiele"-Zusagen + Ersatzspieler-Einsätze */}
+      {view === "mine" && (
+        <main className="max-w-2xl mx-auto px-5 mt-4 flex flex-col gap-3">
+          {mineLoading && (
+            <div className="flex items-center justify-center gap-2 text-sm text-stone-400 dark:text-stone-500 py-10">
+              <Loader2 size={14} className="animate-spin" /> Lädt deine Spiele…
+            </div>
+          )}
+          {mineError && (
+            <div className="flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded px-3 py-2">
+              <AlertTriangle size={14} /> {mineError}
+            </div>
+          )}
+          {!mineLoading && !mineError && mineUpcoming.length === 0 && (
+            <div className="text-center text-sm text-stone-400 dark:text-stone-500 py-10 px-4">
+              Keine Spiele gefunden. Hier erscheinen nur Spiele, bei denen du selbst „Ich spiele"
+              angeklickt hast, oder bei denen dich jemand als Ersatzspieler für eine andere
+              Mannschaft eingetragen hat.
+            </div>
+          )}
+          {mineUpcoming.map((item) => (
+            <div
+              key={`${item.team.id}-${item.round}-${item.match.id}`}
+              className={`rounded-lg border overflow-hidden ${
+                item.role === "ersatz"
+                  ? "border-violet-300 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/30"
+                  : "border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/20"
+              }`}
+            >
+              <div className="px-4 pt-3 flex items-center justify-between gap-2">
+                <button
+                  onClick={() => {
+                    setTeamId(item.team.id);
+                    setRound(item.round);
+                    setView("cards");
+                  }}
+                  className="text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400 hover:underline"
+                >
+                  {item.team.label}
+                </button>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${
+                    item.role === "ersatz" ? "bg-violet-600 text-white" : "bg-emerald-600 text-white"
+                  }`}
+                >
+                  {item.role === "ersatz" ? "Ersatzspieler" : "Ich spiele"}
+                </span>
+              </div>
+              <div className="px-4 pt-1 pb-3">
+                <div className="text-xs text-stone-400 dark:text-stone-500 font-semibold flex items-center gap-1">
+                  <Clock size={10} /> {item.match.weekday} {item.match.date} · {item.match.time} Uhr ·{" "}
+                  {item.match.home ? "Heim" : "Auswärts"}
+                </div>
+                <div className="text-stone-900 dark:text-stone-100 font-semibold">{item.match.opponent}</div>
+                {item.match.address && (
+                  <a
+                    href={mapsLink(item.match.address)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 flex items-start gap-1.5 text-xs text-emerald-700 dark:text-emerald-400 hover:underline"
+                  >
+                    <Navigation size={12} className="flex-shrink-0 mt-0.5" />
+                    <span>{item.match.address}</span>
+                  </a>
+                )}
+                {item.notiz && (
+                  <div className="mt-1.5 text-xs text-stone-500 dark:text-stone-400 italic">📝 {item.notiz}</div>
+                )}
+              </div>
+            </div>
           ))}
         </main>
       )}
