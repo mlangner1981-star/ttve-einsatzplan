@@ -1207,6 +1207,11 @@ export default function Einsatzplan() {
       roundLabel,
       nextValue === undefined ? `Rückmeldung entfernt bei ${opponent}` : `${STATUS_LABELS[nextValue]} bei ${opponent}`
     );
+    // "Meine Spiele" und "Verein" nutzen einen eigenen Zwischenspeicher, der
+    // sonst erst durch einen manuellen Aktualisieren-Klick den neuen Stand
+    // zeigen würde – hier gleich mit auffrischen.
+    loadMine();
+    loadClub();
   };
 
   const setNote = (matchId, text) => {
@@ -1226,6 +1231,8 @@ export default function Einsatzplan() {
     const opponent = matches.find((m) => m.id === matchId)?.opponent || "Spiel";
     const roundLabel = ROUNDS.find((r) => r.id === round)?.label || round;
     logChange(me, team.label, roundLabel, `Ersatzspieler ${name} hinzugefügt bei ${opponent}`);
+    loadMine();
+    loadClub();
   };
 
   const removeErsatzSpieler = (matchId, name) => {
@@ -1235,6 +1242,8 @@ export default function Einsatzplan() {
     const opponent = matches.find((m) => m.id === matchId)?.opponent || "Spiel";
     const roundLabel = ROUNDS.find((r) => r.id === round)?.label || round;
     logChange(me, team.label, roundLabel, `Ersatzspieler ${name} entfernt bei ${opponent}`);
+    loadMine();
+    loadClub();
   };
 
   const [fotoUploading, setFotoUploading] = useState(null); // matchId, während Verarbeitung läuft
