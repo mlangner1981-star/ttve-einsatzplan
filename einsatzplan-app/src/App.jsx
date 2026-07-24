@@ -1677,7 +1677,7 @@ export default function Einsatzplan() {
               <ChevronDown size={15} className={teamPickerOpen ? "rotate-180 transition-transform" : "transition-transform"} />
             </button>
             {teamPickerOpen && (
-              <div className="absolute left-0 right-0 mt-1 bg-white dark:bg-stone-900 rounded-lg shadow-lg border border-stone-200 dark:border-stone-800 z-20 max-h-72 overflow-y-auto">
+              <div className="absolute left-0 right-0 mt-1 bg-white dark:bg-stone-900 rounded-lg shadow-lg border border-stone-200 dark:border-stone-800 z-40 max-h-72 overflow-y-auto">
                 {allTeams.map((t) => (
                   <button
                     key={t.id}
