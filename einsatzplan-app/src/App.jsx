@@ -683,6 +683,7 @@ export default function Einsatzplan() {
   const [authUser, setAuthUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [showLogin, setShowLogin] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   // --- In-App-Dialoge statt window.confirm/prompt/alert ---
   // (native Browser-Dialoge funktionieren in installierten PWAs auf vielen
@@ -1655,6 +1656,13 @@ export default function Einsatzplan() {
               >
                 {dark ? <Sun size={16} /> : <Moon size={16} />}
               </button>
+              <button
+                onClick={() => setShowHelp(true)}
+                title="Anleitung"
+                className="p-2 rounded-lg bg-emerald-800 text-emerald-200 hover:bg-emerald-700"
+              >
+                <HelpCircle size={16} />
+              </button>
             </div>
           </div>
 
@@ -1795,6 +1803,99 @@ export default function Einsatzplan() {
               >
                 Bestätigen
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hilfe-Modal */}
+      {showHelp && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4 py-8">
+          <div className="bg-white dark:bg-stone-900 rounded-lg w-full max-w-lg max-h-full overflow-y-auto">
+            <div className="sticky top-0 bg-white dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800 px-5 py-4 flex items-center justify-between">
+              <h2 className="font-black text-lg text-stone-800 dark:text-stone-100">Anleitung</h2>
+              <button
+                onClick={() => setShowHelp(false)}
+                className="p-1.5 rounded-lg text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-5 py-4 text-sm text-stone-700 dark:text-stone-200 space-y-5">
+              <div>
+                <h3 className="font-bold text-emerald-700 dark:text-emerald-400 mb-1.5">Erste Schritte</h3>
+                <ol className="list-decimal list-inside space-y-1 text-stone-600 dark:text-stone-300">
+                  <li>Oben deine Mannschaft auswählen</li>
+                  <li>Unter „Ich bin" deinen Namen wählen – wird gemerkt</li>
+                  <li>Bei jedem Spiel deine Rückmeldung eintragen</li>
+                </ol>
+              </div>
+
+              <div>
+                <h3 className="font-bold text-emerald-700 dark:text-emerald-400 mb-1.5">Rückmeldung geben</h3>
+                <ul className="space-y-1 text-stone-600 dark:text-stone-300">
+                  <li>✅ <strong>Ich spiele</strong> – feste Zusage</li>
+                  <li>❌ <strong>Ich kann nicht</strong> – Absage</li>
+                  <li>❔ <strong>Auf Anfrage</strong> – steht noch nicht fest</li>
+                  <li>🟡 <strong>In Klärung</strong> – wird noch abgestimmt</li>
+                </ul>
+                <p className="text-stone-500 dark:text-stone-400 text-xs mt-1.5">
+                  Nochmal antippen macht die Rückmeldung rückgängig.
+                </p>
+              </div>
+
+              <div>
+                <h3 className="font-bold text-emerald-700 dark:text-emerald-400 mb-1.5">Weitere Funktionen</h3>
+                <ul className="space-y-1.5 text-stone-600 dark:text-stone-300">
+                  <li><strong>Dashboard „Nächstes Spiel":</strong> Countdown + Zusagenstand oben in der Mannschaftsansicht</li>
+                  <li><strong>Notizen:</strong> freies Feld unter jedem Spiel, für alle sichtbar</li>
+                  <li><strong>Ersatzspieler:</strong> „+ Ersatzspieler hinzufügen" – zählt automatisch als Zusage mit</li>
+                  <li><strong>Fotos:</strong> bis zu 3 pro Spiel hochladen</li>
+                  <li><strong>Kalender:</strong> „Kalender"-Button pro Spiel oder „.ics" für die ganze Runde</li>
+                  <li><strong>WhatsApp:</strong> grüner Button teilt Termin + Zusagen fertig formatiert</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="font-bold text-emerald-700 dark:text-emerald-400 mb-1.5">Die vier Reiter</h3>
+                <ul className="space-y-1 text-stone-600 dark:text-stone-300">
+                  <li><strong>Meine Spiele:</strong> nur eigene Zusagen + Ersatzeinsätze</li>
+                  <li><strong>[Mannschaft]:</strong> alle Spiele der gewählten Mannschaft</li>
+                  <li><strong>Gesamt:</strong> Tabellenübersicht mit Status auf einen Blick</li>
+                  <li><strong>Verein:</strong> alle 8 Mannschaften, Dashboard, Terminkonflikte, Saison-Rückblick</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="font-bold text-emerald-700 dark:text-emerald-400 mb-1.5">Sonstiges</h3>
+                <ul className="space-y-1 text-stone-600 dark:text-stone-300">
+                  <li>🎂 Geburtstags-Banner am Geburtstag eines Spielers</li>
+                  <li>🎉 Konfetti, wenn eure Zusage die Mannschaft komplett macht</li>
+                  <li>Sonne/Mond oben rechts: Hell-/Dunkelmodus</li>
+                  <li>„Tabelle"-Link neben der Liga führt zu myTischtennis.de</li>
+                </ul>
+              </div>
+
+              <div className="border-t border-stone-200 dark:border-stone-800 pt-4">
+                <h3 className="font-bold text-emerald-700 dark:text-emerald-400 mb-1.5">Für Mannschaftsführer</h3>
+                <ul className="space-y-1.5 text-stone-600 dark:text-stone-300">
+                  <li><strong>Anmelden:</strong> Schloss-Symbol oben rechts (offenes Schloss = eingeloggt)</li>
+                  <li><strong>Spieltag bearbeiten/löschen:</strong> Stift-Symbol bei jedem Spiel</li>
+                  <li><strong>Admin-Bereich</strong> (ganz unten): Rückmeldungen zurücksetzen, Kader verwalten, Geburtstage eintragen, neue Mannschaft anlegen, Änderungsverlauf einsehen</li>
+                </ul>
+              </div>
+
+              <div className="border-t border-stone-200 dark:border-stone-800 pt-4">
+                <h3 className="font-bold text-stone-500 dark:text-stone-400 mb-1.5 text-xs uppercase tracking-wide">Farb-Referenz</h3>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone-500 dark:text-stone-400">
+                  <span>🟢 Zugesagt</span>
+                  <span>🔴 Abgesagt</span>
+                  <span>🔵 Auf Anfrage</span>
+                  <span>🟡 In Klärung</span>
+                  <span>⚪ Offen</span>
+                  <span>🟣 Ersatzspieler</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
