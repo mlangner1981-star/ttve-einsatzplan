@@ -1,7 +1,7 @@
 import { doc, getDocFromServer, setDoc } from "firebase/firestore";
 import { db } from "./firebase.js";
 
-const COLLECTION = "einsatzplan_shared_storage";
+const COLLECTION = "einsatzplan_shared_storage_test"; // TEST-Umgebung – eigene Sammlung, berührt NICHT die echten Vereinsdaten
 const TIMEOUT_MS = 8000;
 
 // Verhindert, dass ein hängendes Firestore-Promise die App für immer im
