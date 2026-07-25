@@ -732,6 +732,7 @@ export default function Einsatzplan() {
       setShowLogin(false);
       setLoginEmail("");
       setLoginPassword("");
+      setView("admin");
     } catch (err) {
       setLoginError("Anmeldung fehlgeschlagen – E-Mail oder Passwort falsch.");
     }
