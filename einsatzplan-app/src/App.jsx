@@ -14,6 +14,7 @@ import {
   Navigation,
   Users,
   ClipboardList,
+  Settings,
   Building2,
   Inbox,
   FileDown,
@@ -738,6 +739,7 @@ export default function Einsatzplan() {
 
   const handleLogout = () => {
     signOut(auth);
+    if (view === "admin") setView("cards");
   };
 
   const scopeKey = `${teamId}-${round}`;
@@ -1734,6 +1736,17 @@ export default function Einsatzplan() {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
+              {authUser && (
+                <button
+                  onClick={() => setView("admin")}
+                  title="Admin-Bereich"
+                  className={`p-2 rounded-lg ${
+                    view === "admin" ? "bg-white text-emerald-800" : "bg-emerald-800 text-emerald-200 hover:bg-emerald-700"
+                  }`}
+                >
+                  <Settings size={16} />
+                </button>
+              )}
               {!authLoading && (
                 authUser ? (
                   <button
@@ -2997,8 +3010,8 @@ export default function Einsatzplan() {
         </main>
       )}
 
-      {authUser && (
-        <div className="max-w-2xl mx-auto px-5 mt-8">
+      {view === "admin" && authUser && (
+        <main className="max-w-2xl mx-auto px-5 mt-4 ttve-fadein">
           <div className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-5">
             <div className="flex items-center gap-1.5 text-xs font-bold text-red-700 dark:text-red-400 uppercase tracking-wide mb-1.5">
               <AlertTriangle size={13} /> Admin-Bereich
@@ -3235,7 +3248,7 @@ export default function Einsatzplan() {
               </div>
             )}
           </div>
-        </div>
+        </main>
       )}
 
       <footer className="max-w-2xl mx-auto px-5 mt-8 text-center text-[11px] text-stone-400 dark:text-stone-600">
