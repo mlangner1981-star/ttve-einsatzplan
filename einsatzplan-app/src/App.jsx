@@ -18,6 +18,11 @@ import {
   Building2,
   Inbox,
   FileDown,
+  CalendarClock,
+  Newspaper,
+  Phone,
+  Mail,
+  UserPlus,
   CalendarDays,
   CalendarPlus,
   Sun,
@@ -302,6 +307,10 @@ const CHANGELOG_MAX = 50;
 const CUSTOM_TEAMS_KEY = "ttv-suechteln-vorst-teams-custom";
 const ROSTER_PREFIX = "ttv-suechteln-vorst-kader-";
 const BIRTHDAYS_KEY = "ttv-suechteln-vorst-geburtstage";
+const NEWS_KEY = "ttv-suechteln-vorst-news";
+const BOARD_KEY = "ttv-suechteln-vorst-vorstand";
+const EVENTS_KEY = "ttv-suechteln-vorst-termine";
+const MEMBERS_KEY = "ttv-suechteln-vorst-mitglieder";
 
 const STATUS_LABELS = {
   yes: "Ich spiele",
@@ -1109,6 +1118,14 @@ export default function Einsatzplan() {
   }, [clubData]);
 
   const [showSeasonReview, setShowSeasonReview] = useState(false);
+  const [showNews, setShowNews] = useState(true);
+  const [showBoard, setShowBoard] = useState(false);
+  const [showEvents, setShowEvents] = useState(false);
+  const [showMembers, setShowMembers] = useState(false);
+  const [newsForm, setNewsForm] = useState({ title: "", text: "" });
+  const [boardForm, setBoardForm] = useState({ name: "", role: "", phone: "", email: "" });
+  const [eventForm, setEventForm] = useState({ title: "", date: "", time: "", location: "" });
+  const [memberForm, setMemberForm] = useState({ name: "", phone: "", email: "", note: "" });
 
   // Erkennt, ob ein Spieler am selben Datum bei mehreren Mannschaften mit
   // "Ich spiele" zugesagt hat (Doppel-Zusage/Terminkonflikt).
@@ -1262,6 +1279,25 @@ export default function Einsatzplan() {
     logChange(me, team.label, roundLabel, `Notiz geändert bei ${opponent}`);
   };
 
+  const requestVerlegung = (matchId) => {
+    const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
+    const already = !!current.verlegungBeantragt;
+    if (already) {
+      persist({ ...data, [matchId]: { ...current, verlegungBeantragt: false } });
+      return;
+    }
+    askConfirm(
+      "Spielverlegung beim Mannschaftsführer/Verband beantragen? Das markiert den Spieltag sichtbar für alle als \"Verlegung angefragt\" – die eigentliche Absprache mit dem Gegner läuft weiterhin außerhalb der App.",
+      () => {
+        persist({ ...data, [matchId]: { ...current, verlegungBeantragt: true } });
+        const opponent = matches.find((m) => m.id === matchId)?.opponent || "Spiel";
+        const roundLabel = ROUNDS.find((r) => r.id === round)?.label || round;
+        logChange(me || authUser?.email, team.label, roundLabel, `Verlegung beantragt bei ${opponent}`);
+        showToast("Verlegung als angefragt markiert.");
+      }
+    );
+  };
+
   const addErsatzSpieler = (matchId, name) => {
     if (!name) return;
     const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
@@ -1380,6 +1416,79 @@ export default function Einsatzplan() {
       })
       .map(([name]) => name);
   }, [birthdays]);
+
+  // --- Generische Verwaltung für einfache Listen (News, Vorstand, Termine, Mitglieder) ---
+  const [news, setNews] = useState([]);
+  const [board, setBoard] = useState([]);
+  const [clubEvents, setClubEvents] = useState([]);
+  const [members, setMembers] = useState([]);
+  const [listsLoaded, setListsLoaded] = useState(false);
+
+  const loadLists = useCallback(async () => {
+    try {
+      const [n, b, e, m] = await Promise.all([
+        getShared(NEWS_KEY),
+        getShared(BOARD_KEY),
+        getShared(EVENTS_KEY),
+        getShared(MEMBERS_KEY),
+      ]);
+      setNews(n && n.value ? JSON.parse(n.value) : []);
+      setBoard(b && b.value ? JSON.parse(b.value) : []);
+      setClubEvents(e && e.value ? JSON.parse(e.value) : []);
+      setMembers(m && m.value ? JSON.parse(m.value) : []);
+    } catch (err) {
+      // still ok: Bereiche bleiben dann einfach leer
+    } finally {
+      setListsLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadLists();
+  }, [loadLists]);
+
+  async function saveList(key, setter, nextList) {
+    setter(nextList);
+    try {
+      await setShared(key, JSON.stringify(nextList));
+    } catch (e) {
+      showToast(`Speichern fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
+    }
+  }
+
+  const addNews = (title, text) => {
+    if (!title.trim()) return;
+    const item = { id: Date.now(), title: title.trim(), text: text.trim(), date: todayDMY(), author: authUser?.email || "Vorstand" };
+    saveList(NEWS_KEY, setNews, [item, ...news]);
+    logChange(authUser?.email, "Verein", "-", `News veröffentlicht: ${title.trim()}`);
+  };
+  const removeNews = (id) => saveList(NEWS_KEY, setNews, news.filter((n) => n.id !== id));
+
+  const addBoardMember = (name, role, phone, email) => {
+    if (!name.trim()) return;
+    const item = { id: Date.now(), name: name.trim(), role: role.trim(), phone: phone.trim(), email: email.trim() };
+    saveList(BOARD_KEY, setBoard, [...board, item]);
+    logChange(authUser?.email, "Verein", "-", `Ansprechpartner hinzugefügt: ${name.trim()}`);
+  };
+  const removeBoardMember = (id) => saveList(BOARD_KEY, setBoard, board.filter((b) => b.id !== id));
+
+  const addClubEvent = (title, date, time, location) => {
+    if (!title.trim() || !date.trim()) return;
+    const item = { id: Date.now(), title: title.trim(), date: date.trim(), time: time.trim(), location: location.trim() };
+    const next = [...clubEvents, item].sort((a, b) => dmyToIso(a.date).localeCompare(dmyToIso(b.date)));
+    saveList(EVENTS_KEY, setClubEvents, next);
+    logChange(authUser?.email, "Verein", "-", `Termin hinzugefügt: ${title.trim()}`);
+  };
+  const removeClubEvent = (id) => saveList(EVENTS_KEY, setClubEvents, clubEvents.filter((e) => e.id !== id));
+
+  const addMember = (name, phone, email, note) => {
+    if (!name.trim()) return;
+    const item = { id: Date.now(), name: name.trim(), phone: phone.trim(), email: email.trim(), note: note.trim() };
+    saveList(MEMBERS_KEY, setMembers, [...members, item].sort((a, b) => a.name.localeCompare(b.name, "de")));
+    logChange(authUser?.email, "Verein", "-", `Mitglied hinzugefügt: ${name.trim()}`);
+  };
+  const removeMember = (id) => saveList(MEMBERS_KEY, setMembers, members.filter((m) => m.id !== id));
+
   const [changelog, setChangelog] = useState(null);
   const [changelogLoading, setChangelogLoading] = useState(false);
 
@@ -2241,6 +2350,221 @@ export default function Einsatzplan() {
             </div>
           )}
 
+          {/* News */}
+          <div>
+            <button
+              onClick={() => setShowNews((s) => !s)}
+              className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800"
+            >
+              <span className="flex items-center gap-2 text-stone-800 dark:text-stone-100">
+                <Newspaper size={16} className="text-emerald-600" /> News{news.length > 0 && ` (${news.length})`}
+              </span>
+              <ChevronDown size={16} className={showNews ? "rotate-180" : ""} />
+            </button>
+            {showNews && (
+              <div className="mt-2 flex flex-col gap-2">
+                {news.length === 0 && <p className="text-xs text-stone-400 px-1">Noch keine News.</p>}
+                {news.map((n) => (
+                  <div key={n.id} className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold text-sm text-stone-800 dark:text-stone-100">{n.title}</div>
+                      {authUser && (
+                        <button onClick={() => removeNews(n.id)} className="text-stone-300 hover:text-red-600">
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-stone-400 mb-1">{n.date}</div>
+                    {n.text && <p className="text-xs text-stone-600 dark:text-stone-300 whitespace-pre-line">{n.text}</p>}
+                  </div>
+                ))}
+                {authUser && (
+                  <div className="rounded-lg border border-dashed border-stone-300 dark:border-stone-700 p-3 flex flex-col gap-2">
+                    <input
+                      value={newsForm.title}
+                      onChange={(e) => setNewsForm({ ...newsForm, title: e.target.value })}
+                      placeholder="Titel"
+                      className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm"
+                    />
+                    <textarea
+                      value={newsForm.text}
+                      onChange={(e) => setNewsForm({ ...newsForm, text: e.target.value })}
+                      placeholder="Text (optional)"
+                      rows={2}
+                      className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm"
+                    />
+                    <button
+                      onClick={() => {
+                        addNews(newsForm.title, newsForm.text);
+                        setNewsForm({ title: "", text: "" });
+                      }}
+                      className="text-sm font-bold py-2 rounded-lg bg-emerald-700 text-white"
+                    >
+                      News veröffentlichen
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Vorstand / Ansprechpartner */}
+          <div>
+            <button
+              onClick={() => setShowBoard((s) => !s)}
+              className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800"
+            >
+              <span className="flex items-center gap-2 text-stone-800 dark:text-stone-100">
+                <Users size={16} className="text-emerald-600" /> Vorstand / Ansprechpartner
+              </span>
+              <ChevronDown size={16} className={showBoard ? "rotate-180" : ""} />
+            </button>
+            {showBoard && (
+              <div className="mt-2 flex flex-col gap-2">
+                {board.length === 0 && <p className="text-xs text-stone-400 px-1">Noch keine Ansprechpartner eingetragen.</p>}
+                {board.map((b) => (
+                  <div key={b.id} className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-3 flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-sm text-stone-800 dark:text-stone-100">{b.name}</div>
+                      <div className="text-xs text-stone-500 dark:text-stone-400">{b.role}</div>
+                      <div className="flex gap-3 mt-1 text-xs text-emerald-700 dark:text-emerald-400">
+                        {b.phone && <a href={`tel:${b.phone}`} className="flex items-center gap-1"><Phone size={11} /> {b.phone}</a>}
+                        {b.email && <a href={`mailto:${b.email}`} className="flex items-center gap-1"><Mail size={11} /> {b.email}</a>}
+                      </div>
+                    </div>
+                    {authUser && (
+                      <button onClick={() => removeBoardMember(b.id)} className="text-stone-300 hover:text-red-600">
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {authUser && (
+                  <div className="rounded-lg border border-dashed border-stone-300 dark:border-stone-700 p-3 flex flex-col gap-2">
+                    <input value={boardForm.name} onChange={(e) => setBoardForm({ ...boardForm, name: e.target.value })} placeholder="Name" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
+                    <input value={boardForm.role} onChange={(e) => setBoardForm({ ...boardForm, role: e.target.value })} placeholder="Funktion (z. B. 1. Vorsitzender)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
+                    <input value={boardForm.phone} onChange={(e) => setBoardForm({ ...boardForm, phone: e.target.value })} placeholder="Telefon (optional)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
+                    <input value={boardForm.email} onChange={(e) => setBoardForm({ ...boardForm, email: e.target.value })} placeholder="E-Mail (optional)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
+                    <button
+                      onClick={() => {
+                        addBoardMember(boardForm.name, boardForm.role, boardForm.phone, boardForm.email);
+                        setBoardForm({ name: "", role: "", phone: "", email: "" });
+                      }}
+                      className="text-sm font-bold py-2 rounded-lg bg-emerald-700 text-white"
+                    >
+                      Hinzufügen
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Vereinstermine */}
+          <div>
+            <button
+              onClick={() => setShowEvents((s) => !s)}
+              className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800"
+            >
+              <span className="flex items-center gap-2 text-stone-800 dark:text-stone-100">
+                <CalendarClock size={16} className="text-emerald-600" /> Vereinstermine{clubEvents.length > 0 && ` (${clubEvents.length})`}
+              </span>
+              <ChevronDown size={16} className={showEvents ? "rotate-180" : ""} />
+            </button>
+            {showEvents && (
+              <div className="mt-2 flex flex-col gap-2">
+                {clubEvents.length === 0 && <p className="text-xs text-stone-400 px-1">Keine Vereinstermine eingetragen.</p>}
+                {clubEvents.map((ev) => (
+                  <div key={ev.id} className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-3 flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-sm text-stone-800 dark:text-stone-100">{ev.title}</div>
+                      <div className="text-xs text-stone-500 dark:text-stone-400">
+                        {ev.date}{ev.time && ` · ${ev.time} Uhr`}{ev.location && ` · ${ev.location}`}
+                      </div>
+                    </div>
+                    {authUser && (
+                      <button onClick={() => removeClubEvent(ev.id)} className="text-stone-300 hover:text-red-600">
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {authUser && (
+                  <div className="rounded-lg border border-dashed border-stone-300 dark:border-stone-700 p-3 flex flex-col gap-2">
+                    <input value={eventForm.title} onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })} placeholder="Titel (z. B. Jahreshauptversammlung)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
+                    <input value={eventForm.date} onChange={(e) => setEventForm({ ...eventForm, date: e.target.value })} placeholder="Datum (TT.MM.JJJJ)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
+                    <input value={eventForm.time} onChange={(e) => setEventForm({ ...eventForm, time: e.target.value })} placeholder="Uhrzeit (optional)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
+                    <input value={eventForm.location} onChange={(e) => setEventForm({ ...eventForm, location: e.target.value })} placeholder="Ort (optional)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
+                    <button
+                      onClick={() => {
+                        addClubEvent(eventForm.title, eventForm.date, eventForm.time, eventForm.location);
+                        setEventForm({ title: "", date: "", time: "", location: "" });
+                      }}
+                      className="text-sm font-bold py-2 rounded-lg bg-emerald-700 text-white"
+                    >
+                      Termin hinzufügen
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Mitgliederverzeichnis */}
+          <div>
+            <button
+              onClick={() => setShowMembers((s) => !s)}
+              className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800"
+            >
+              <span className="flex items-center gap-2 text-stone-800 dark:text-stone-100">
+                <UserPlus size={16} className="text-emerald-600" /> Mitgliederverzeichnis{members.length > 0 && ` (${members.length})`}
+              </span>
+              <ChevronDown size={16} className={showMembers ? "rotate-180" : ""} />
+            </button>
+            {showMembers && (
+              <div className="mt-2 flex flex-col gap-2">
+                <p className="text-[11px] text-stone-400 px-1">
+                  Einfaches Verzeichnis für Kontaktdaten – getrennt von den Mannschaftskadern.
+                </p>
+                {members.length === 0 && <p className="text-xs text-stone-400 px-1">Noch keine Mitglieder eingetragen.</p>}
+                {members.map((m) => (
+                  <div key={m.id} className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-3 flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-sm text-stone-800 dark:text-stone-100">{m.name}</div>
+                      <div className="flex gap-3 mt-0.5 text-xs text-emerald-700 dark:text-emerald-400">
+                        {m.phone && <a href={`tel:${m.phone}`} className="flex items-center gap-1"><Phone size={11} /> {m.phone}</a>}
+                        {m.email && <a href={`mailto:${m.email}`} className="flex items-center gap-1"><Mail size={11} /> {m.email}</a>}
+                      </div>
+                      {m.note && <div className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">{m.note}</div>}
+                    </div>
+                    {authUser && (
+                      <button onClick={() => removeMember(m.id)} className="text-stone-300 hover:text-red-600">
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {authUser && (
+                  <div className="rounded-lg border border-dashed border-stone-300 dark:border-stone-700 p-3 flex flex-col gap-2">
+                    <input value={memberForm.name} onChange={(e) => setMemberForm({ ...memberForm, name: e.target.value })} placeholder="Name" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
+                    <input value={memberForm.phone} onChange={(e) => setMemberForm({ ...memberForm, phone: e.target.value })} placeholder="Telefon (optional)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
+                    <input value={memberForm.email} onChange={(e) => setMemberForm({ ...memberForm, email: e.target.value })} placeholder="E-Mail (optional)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
+                    <input value={memberForm.note} onChange={(e) => setMemberForm({ ...memberForm, note: e.target.value })} placeholder="Notiz (optional)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
+                    <button
+                      onClick={() => {
+                        addMember(memberForm.name, memberForm.phone, memberForm.email, memberForm.note);
+                        setMemberForm({ name: "", phone: "", email: "", note: "" });
+                      }}
+                      className="text-sm font-bold py-2 rounded-lg bg-emerald-700 text-white"
+                    >
+                      Mitglied hinzufügen
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {!clubLoading && !clubError && scheduleConflicts.length > 0 && (
             <div className="rounded-lg border-2 border-red-400 dark:border-red-700 bg-red-50 dark:bg-red-950/50 p-4">
               <div className="flex items-center gap-1.5 text-sm font-bold text-red-700 dark:text-red-400 mb-2">
@@ -2881,6 +3205,18 @@ export default function Einsatzplan() {
                     </label>
                   )}
                 </div>
+
+                <button
+                  onClick={() => requestVerlegung(m.id)}
+                  className={`w-full flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-lg border mt-3 ${
+                    entry.verlegungBeantragt
+                      ? "bg-amber-500 border-amber-500 text-white"
+                      : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-500 dark:text-stone-400"
+                  }`}
+                >
+                  <CalendarClock size={13} />
+                  {entry.verlegungBeantragt ? "Verlegung angefragt (Klick zum Entfernen)" : "Spielverlegung beantragen"}
+                </button>
 
                 <button
                   onClick={() => setOpenNote(openNote === `${teamId}-${round}-${m.id}` ? null : `${teamId}-${round}-${m.id}`)}
