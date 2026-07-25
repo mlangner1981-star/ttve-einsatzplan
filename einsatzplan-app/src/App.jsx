@@ -2350,17 +2350,68 @@ export default function Einsatzplan() {
             </div>
           )}
 
-          {/* News */}
-          <div>
+          {/* Kachel-Navigation für News / Vorstand / Termine / Mitglieder */}
+          <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setShowNews((s) => !s)}
-              className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800"
+              className={`rounded-xl border p-3.5 text-center ${
+                showNews
+                  ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40"
+                  : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900"
+              }`}
             >
-              <span className="flex items-center gap-2 text-stone-800 dark:text-stone-100">
-                <Newspaper size={16} className="text-emerald-600" /> News{news.length > 0 && ` (${news.length})`}
-              </span>
-              <ChevronDown size={16} className={showNews ? "rotate-180" : ""} />
+              <div className="w-9 h-9 mx-auto mb-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center">
+                <Newspaper size={17} className="text-emerald-700 dark:text-emerald-400" />
+              </div>
+              <div className="text-xs font-bold text-stone-800 dark:text-stone-100">News</div>
+              <div className="text-[10px] text-stone-400 dark:text-stone-500">{news.length > 0 ? `${news.length} Meldung${news.length > 1 ? "en" : ""}` : "keine"}</div>
             </button>
+            <button
+              onClick={() => setShowBoard((s) => !s)}
+              className={`rounded-xl border p-3.5 text-center ${
+                showBoard
+                  ? "border-sky-500 bg-sky-50 dark:bg-sky-950/40"
+                  : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900"
+              }`}
+            >
+              <div className="w-9 h-9 mx-auto mb-1.5 rounded-lg bg-sky-100 dark:bg-sky-900 flex items-center justify-center">
+                <Users size={17} className="text-sky-700 dark:text-sky-400" />
+              </div>
+              <div className="text-xs font-bold text-stone-800 dark:text-stone-100">Vorstand</div>
+              <div className="text-[10px] text-stone-400 dark:text-stone-500">{board.length > 0 ? `${board.length} Kontakte` : "Ansprechpartner"}</div>
+            </button>
+            <button
+              onClick={() => setShowEvents((s) => !s)}
+              className={`rounded-xl border p-3.5 text-center ${
+                showEvents
+                  ? "border-amber-500 bg-amber-50 dark:bg-amber-950/40"
+                  : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900"
+              }`}
+            >
+              <div className="w-9 h-9 mx-auto mb-1.5 rounded-lg bg-amber-100 dark:bg-amber-900 flex items-center justify-center">
+                <CalendarClock size={17} className="text-amber-700 dark:text-amber-400" />
+              </div>
+              <div className="text-xs font-bold text-stone-800 dark:text-stone-100">Termine</div>
+              <div className="text-[10px] text-stone-400 dark:text-stone-500">{clubEvents.length > 0 ? `${clubEvents.length} anstehend` : "keine"}</div>
+            </button>
+            <button
+              onClick={() => setShowMembers((s) => !s)}
+              className={`rounded-xl border p-3.5 text-center ${
+                showMembers
+                  ? "border-violet-500 bg-violet-50 dark:bg-violet-950/40"
+                  : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900"
+              }`}
+            >
+              <div className="w-9 h-9 mx-auto mb-1.5 rounded-lg bg-violet-100 dark:bg-violet-900 flex items-center justify-center">
+                <UserPlus size={17} className="text-violet-700 dark:text-violet-400" />
+              </div>
+              <div className="text-xs font-bold text-stone-800 dark:text-stone-100">Mitglieder</div>
+              <div className="text-[10px] text-stone-400 dark:text-stone-500">{members.length > 0 ? `${members.length} Kontakte` : "Verzeichnis"}</div>
+            </button>
+          </div>
+
+          {/* News */}
+          <div>
             {showNews && (
               <div className="mt-2 flex flex-col gap-2">
                 {news.length === 0 && <p className="text-xs text-stone-400 px-1">Noch keine News.</p>}
@@ -2410,15 +2461,6 @@ export default function Einsatzplan() {
 
           {/* Vorstand / Ansprechpartner */}
           <div>
-            <button
-              onClick={() => setShowBoard((s) => !s)}
-              className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800"
-            >
-              <span className="flex items-center gap-2 text-stone-800 dark:text-stone-100">
-                <Users size={16} className="text-emerald-600" /> Vorstand / Ansprechpartner
-              </span>
-              <ChevronDown size={16} className={showBoard ? "rotate-180" : ""} />
-            </button>
             {showBoard && (
               <div className="mt-2 flex flex-col gap-2">
                 {board.length === 0 && <p className="text-xs text-stone-400 px-1">Noch keine Ansprechpartner eingetragen.</p>}
@@ -2462,15 +2504,6 @@ export default function Einsatzplan() {
 
           {/* Vereinstermine */}
           <div>
-            <button
-              onClick={() => setShowEvents((s) => !s)}
-              className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800"
-            >
-              <span className="flex items-center gap-2 text-stone-800 dark:text-stone-100">
-                <CalendarClock size={16} className="text-emerald-600" /> Vereinstermine{clubEvents.length > 0 && ` (${clubEvents.length})`}
-              </span>
-              <ChevronDown size={16} className={showEvents ? "rotate-180" : ""} />
-            </button>
             {showEvents && (
               <div className="mt-2 flex flex-col gap-2">
                 {clubEvents.length === 0 && <p className="text-xs text-stone-400 px-1">Keine Vereinstermine eingetragen.</p>}
@@ -2512,15 +2545,6 @@ export default function Einsatzplan() {
 
           {/* Mitgliederverzeichnis */}
           <div>
-            <button
-              onClick={() => setShowMembers((s) => !s)}
-              className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800"
-            >
-              <span className="flex items-center gap-2 text-stone-800 dark:text-stone-100">
-                <UserPlus size={16} className="text-emerald-600" /> Mitgliederverzeichnis{members.length > 0 && ` (${members.length})`}
-              </span>
-              <ChevronDown size={16} className={showMembers ? "rotate-180" : ""} />
-            </button>
             {showMembers && (
               <div className="mt-2 flex flex-col gap-2">
                 <p className="text-[11px] text-stone-400 px-1">
