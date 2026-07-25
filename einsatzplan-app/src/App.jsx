@@ -16,6 +16,7 @@ import {
   ClipboardList,
   Building2,
   Inbox,
+  FileDown,
   CalendarDays,
   CalendarPlus,
   Sun,
@@ -684,6 +685,8 @@ export default function Einsatzplan() {
   const [authLoading, setAuthLoading] = useState(true);
   const [showLogin, setShowLogin] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [printMode, setPrintMode] = useState(false);
+  const [printLoading, setPrintLoading] = useState(false);
 
   // --- In-App-Dialoge statt window.confirm/prompt/alert ---
   // (native Browser-Dialoge funktionieren in installierten PWAs auf vielen
@@ -1508,6 +1511,47 @@ export default function Einsatzplan() {
     );
   };
 
+  const exportOverviewPDF = async () => {
+    setPrintLoading(true);
+    if (Object.keys(clubData).length === 0) {
+      await loadClub();
+    }
+    setPrintLoading(false);
+    setPrintMode(true);
+    setTimeout(() => {
+      window.print();
+    }, 200);
+  };
+
+  useEffect(() => {
+    const handler = () => setPrintMode(false);
+    window.addEventListener("afterprint", handler);
+    return () => window.removeEventListener("afterprint", handler);
+  }, []);
+
+  const printOverviewData = useMemo(() => {
+    const now = new Date();
+    const byTeam = allTeams.map((t) => {
+      const items = [];
+      ROUNDS.forEach((r) => {
+        const key = `${t.id}-${r.id}`;
+        const cd = clubData[key];
+        if (!cd) return;
+        cd.matches.forEach((m) => {
+          if (!m.date) return;
+          if (matchToDate(m) < new Date(now.getTime() - 3 * 3600 * 1000)) return;
+          const entry = cd.data[m.id] || { availability: {}, ersatzSpieler: [] };
+          const avail = entry.availability || {};
+          const s = computeMatchStatus(t.players, avail, t.requiredPlayers, entry.ersatzSpieler);
+          items.push({ match: m, s, ersatz: entry.ersatzSpieler || [] });
+        });
+      });
+      items.sort((a, b) => matchToDate(a.match) - matchToDate(b.match));
+      return { team: t, items };
+    });
+    return byTeam.filter((b) => b.items.length > 0);
+  }, [clubData, allTeams]);
+
   const resetEverything = () => {
     if (!authUser) return;
     askPrompt(
@@ -1590,7 +1634,67 @@ export default function Einsatzplan() {
       <style>{`
         @keyframes ttve-fadein-kf { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
         .ttve-fadein { animation: ttve-fadein-kf 0.25s ease-out; }
+        #ttve-print-area { display: none; }
+        @media print {
+          body * { visibility: hidden; }
+          #ttve-print-area, #ttve-print-area * { visibility: visible; }
+          #ttve-print-area { display: block !important; position: absolute; top: 0; left: 0; width: 100%; }
+        }
       `}</style>
+
+      {/* Druckbare Gesamtübersicht (nur beim Drucken/PDF-Export sichtbar) */}
+      <div id="ttve-print-area" className="p-6 text-black bg-white">
+        <div className="flex items-center gap-3 mb-1 border-b-2 border-emerald-700 pb-3">
+          <img src={LOGO_DATA_URI} alt="TVE Logo" className="w-12 h-12" />
+          <div>
+            <div className="text-xl font-black">Gesamtübersicht – Einsatzplan</div>
+            <div className="text-xs text-stone-600">
+              TTV Einigkeit Süchteln-Vorst · Stand: {new Date().toLocaleDateString("de-DE")} {new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr
+            </div>
+          </div>
+        </div>
+        {printOverviewData.length === 0 && (
+          <p className="text-sm text-stone-500 mt-4">Keine anstehenden Spiele gefunden.</p>
+        )}
+        {printOverviewData.map(({ team: t, items }) => (
+          <div key={t.id} className="mt-5" style={{ breakInside: "avoid" }}>
+            <div className="text-base font-bold bg-stone-100 px-2 py-1 mb-1.5">
+              {t.label} <span className="font-normal text-stone-500 text-xs">· {t.league}</span>
+            </div>
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-stone-400 text-left">
+                  <th className="py-1 pr-2">Datum</th>
+                  <th className="py-1 pr-2">Zeit</th>
+                  <th className="py-1 pr-2">H/A</th>
+                  <th className="py-1 pr-2">Gegner</th>
+                  <th className="py-1 pr-2">Status</th>
+                  <th className="py-1 pr-2">Zugesagt</th>
+                  <th className="py-1 pr-2">Abgesagt</th>
+                  <th className="py-1">Ersatz</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map(({ match: m, s, ersatz }) => (
+                  <tr key={m.id} className="border-b border-stone-200">
+                    <td className="py-1 pr-2 whitespace-nowrap">{m.weekday} {m.date}</td>
+                    <td className="py-1 pr-2 whitespace-nowrap">{m.time}</td>
+                    <td className="py-1 pr-2">{m.home ? "Heim" : "Ausw."}</td>
+                    <td className="py-1 pr-2">{m.opponent}</td>
+                    <td className="py-1 pr-2 font-semibold">
+                      {s.warning ? "Ersatz nötig" : s.filled ? "Komplett" : `${s.confirmedCount}/${t.requiredPlayers}`}
+                    </td>
+                    <td className="py-1 pr-2">{s.yes.join(", ") || "–"}</td>
+                    <td className="py-1 pr-2">{s.no.join(", ") || "–"}</td>
+                    <td className="py-1">{ersatz.join(", ") || "–"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </div>
+
       <Confetti triggerKey={confettiKey} />
       {welcomeName && (
         <div className="bg-emerald-600 text-white text-sm font-bold text-center py-2 px-4">
@@ -3070,6 +3174,25 @@ export default function Einsatzplan() {
                 )}
               </div>
             )}
+          </div>
+
+          {/* Gesamtübersicht als PDF exportieren */}
+          <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-5 mt-3">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wide mb-2">
+              <FileDown size={13} /> Gesamtübersicht exportieren
+            </div>
+            <p className="text-[11px] text-stone-400 dark:text-stone-500 mb-3">
+              Erstellt eine druckfreundliche Übersicht aller anstehenden Spiele mit Zusagen-Status
+              über alle Mannschaften. Im Druckdialog als Ziel „Als PDF speichern" wählen.
+            </p>
+            <button
+              onClick={exportOverviewPDF}
+              disabled={printLoading}
+              className="w-full flex items-center justify-center gap-1.5 text-sm font-bold py-2.5 rounded-lg bg-stone-700 hover:bg-stone-800 text-white disabled:opacity-60"
+            >
+              {printLoading ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />}
+              Gesamtübersicht als PDF exportieren
+            </button>
           </div>
 
           <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-5 mt-3">
