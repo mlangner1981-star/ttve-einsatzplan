@@ -2425,63 +2425,41 @@ export default function Einsatzplan() {
             </div>
           )}
 
-          {/* Kachel-Navigation für News / Vorstand / Termine / Mitglieder */}
-          <div className="grid grid-cols-2 gap-2">
+          {/* Kachel-Navigation für News / Termine */}
+          <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => setShowNews((s) => !s)}
-              className={`rounded-xl border p-3.5 text-center ${
+              className={`rounded-xl border-2 p-4 text-left transition-colors ${
                 showNews
                   ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40"
                   : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900"
               }`}
             >
-              <div className="w-9 h-9 mx-auto mb-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center">
-                <Newspaper size={17} className="text-emerald-700 dark:text-emerald-400" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center">
+                  <Newspaper size={19} className="text-emerald-700 dark:text-emerald-400" />
+                </div>
+                <ChevronDown size={16} className={`text-stone-300 dark:text-stone-600 transition-transform ${showNews ? "rotate-180" : ""}`} />
               </div>
-              <div className="text-xs font-bold text-stone-800 dark:text-stone-100">News</div>
-              <div className="text-[10px] text-stone-400 dark:text-stone-500">{news.length > 0 ? `${news.length} Meldung${news.length > 1 ? "en" : ""}` : "keine"}</div>
-            </button>
-            <button
-              onClick={() => setShowBoard((s) => !s)}
-              className={`rounded-xl border p-3.5 text-center ${
-                showBoard
-                  ? "border-sky-500 bg-sky-50 dark:bg-sky-950/40"
-                  : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900"
-              }`}
-            >
-              <div className="w-9 h-9 mx-auto mb-1.5 rounded-lg bg-sky-100 dark:bg-sky-900 flex items-center justify-center">
-                <Users size={17} className="text-sky-700 dark:text-sky-400" />
-              </div>
-              <div className="text-xs font-bold text-stone-800 dark:text-stone-100">Vorstand</div>
-              <div className="text-[10px] text-stone-400 dark:text-stone-500">{board.length > 0 ? `${board.length} Kontakte` : "Ansprechpartner"}</div>
+              <div className="text-sm font-bold text-stone-800 dark:text-stone-100">News</div>
+              <div className="text-xs text-stone-400 dark:text-stone-500">{news.length > 0 ? `${news.length} Meldung${news.length > 1 ? "en" : ""}` : "Noch keine"}</div>
             </button>
             <button
               onClick={() => setShowEvents((s) => !s)}
-              className={`rounded-xl border p-3.5 text-center ${
+              className={`rounded-xl border-2 p-4 text-left transition-colors ${
                 showEvents
                   ? "border-amber-500 bg-amber-50 dark:bg-amber-950/40"
                   : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900"
               }`}
             >
-              <div className="w-9 h-9 mx-auto mb-1.5 rounded-lg bg-amber-100 dark:bg-amber-900 flex items-center justify-center">
-                <CalendarClock size={17} className="text-amber-700 dark:text-amber-400" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900 flex items-center justify-center">
+                  <CalendarClock size={19} className="text-amber-700 dark:text-amber-400" />
+                </div>
+                <ChevronDown size={16} className={`text-stone-300 dark:text-stone-600 transition-transform ${showEvents ? "rotate-180" : ""}`} />
               </div>
-              <div className="text-xs font-bold text-stone-800 dark:text-stone-100">Termine</div>
-              <div className="text-[10px] text-stone-400 dark:text-stone-500">{clubEvents.length > 0 ? `${clubEvents.length} anstehend` : "keine"}</div>
-            </button>
-            <button
-              onClick={() => setShowMembers((s) => !s)}
-              className={`rounded-xl border p-3.5 text-center ${
-                showMembers
-                  ? "border-violet-500 bg-violet-50 dark:bg-violet-950/40"
-                  : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900"
-              }`}
-            >
-              <div className="w-9 h-9 mx-auto mb-1.5 rounded-lg bg-violet-100 dark:bg-violet-900 flex items-center justify-center">
-                <UserPlus size={17} className="text-violet-700 dark:text-violet-400" />
-              </div>
-              <div className="text-xs font-bold text-stone-800 dark:text-stone-100">Mitglieder</div>
-              <div className="text-[10px] text-stone-400 dark:text-stone-500">{members.length > 0 ? `${members.length} Kontakte` : "Verzeichnis"}</div>
+              <div className="text-sm font-bold text-stone-800 dark:text-stone-100">Termine</div>
+              <div className="text-xs text-stone-400 dark:text-stone-500">{clubEvents.length > 0 ? `${clubEvents.length} anstehend` : "Noch keine"}</div>
             </button>
           </div>
 
@@ -2534,49 +2512,6 @@ export default function Einsatzplan() {
             )}
           </div>
 
-          {/* Vorstand / Ansprechpartner */}
-          <div>
-            {showBoard && (
-              <div className="mt-2 flex flex-col gap-2">
-                {board.length === 0 && <p className="text-xs text-stone-400 px-1">Noch keine Ansprechpartner eingetragen.</p>}
-                {board.map((b) => (
-                  <div key={b.id} className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-3 flex items-center justify-between">
-                    <div>
-                      <div className="font-bold text-sm text-stone-800 dark:text-stone-100">{b.name}</div>
-                      <div className="text-xs text-stone-500 dark:text-stone-400">{b.role}</div>
-                      <div className="flex gap-3 mt-1 text-xs text-emerald-700 dark:text-emerald-400">
-                        {b.phone && <a href={`tel:${b.phone}`} className="flex items-center gap-1"><Phone size={11} /> {b.phone}</a>}
-                        {b.email && <a href={`mailto:${b.email}`} className="flex items-center gap-1"><Mail size={11} /> {b.email}</a>}
-                      </div>
-                    </div>
-                    {authUser && (
-                      <button onClick={() => removeBoardMember(b.id)} className="text-stone-300 hover:text-red-600">
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                {authUser && (
-                  <div className="rounded-lg border border-dashed border-stone-300 dark:border-stone-700 p-3 flex flex-col gap-2">
-                    <input value={boardForm.name} onChange={(e) => setBoardForm({ ...boardForm, name: e.target.value })} placeholder="Name" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
-                    <input value={boardForm.role} onChange={(e) => setBoardForm({ ...boardForm, role: e.target.value })} placeholder="Funktion (z. B. 1. Vorsitzender)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
-                    <input value={boardForm.phone} onChange={(e) => setBoardForm({ ...boardForm, phone: e.target.value })} placeholder="Telefon (optional)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
-                    <input value={boardForm.email} onChange={(e) => setBoardForm({ ...boardForm, email: e.target.value })} placeholder="E-Mail (optional)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
-                    <button
-                      onClick={() => {
-                        addBoardMember(boardForm.name, boardForm.role, boardForm.phone, boardForm.email);
-                        setBoardForm({ name: "", role: "", phone: "", email: "" });
-                      }}
-                      className="text-sm font-bold py-2 rounded-lg bg-emerald-700 text-white"
-                    >
-                      Hinzufügen
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
           {/* Vereinstermine */}
           <div>
             {showEvents && (
@@ -2611,52 +2546,6 @@ export default function Einsatzplan() {
                       className="text-sm font-bold py-2 rounded-lg bg-emerald-700 text-white"
                     >
                       Termin hinzufügen
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Mitgliederverzeichnis */}
-          <div>
-            {showMembers && (
-              <div className="mt-2 flex flex-col gap-2">
-                <p className="text-[11px] text-stone-400 px-1">
-                  Einfaches Verzeichnis für Kontaktdaten – getrennt von den Mannschaftskadern.
-                </p>
-                {members.length === 0 && <p className="text-xs text-stone-400 px-1">Noch keine Mitglieder eingetragen.</p>}
-                {members.map((m) => (
-                  <div key={m.id} className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-3 flex items-center justify-between">
-                    <div>
-                      <div className="font-bold text-sm text-stone-800 dark:text-stone-100">{m.name}</div>
-                      <div className="flex gap-3 mt-0.5 text-xs text-emerald-700 dark:text-emerald-400">
-                        {m.phone && <a href={`tel:${m.phone}`} className="flex items-center gap-1"><Phone size={11} /> {m.phone}</a>}
-                        {m.email && <a href={`mailto:${m.email}`} className="flex items-center gap-1"><Mail size={11} /> {m.email}</a>}
-                      </div>
-                      {m.note && <div className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">{m.note}</div>}
-                    </div>
-                    {authUser && (
-                      <button onClick={() => removeMember(m.id)} className="text-stone-300 hover:text-red-600">
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                {authUser && (
-                  <div className="rounded-lg border border-dashed border-stone-300 dark:border-stone-700 p-3 flex flex-col gap-2">
-                    <input value={memberForm.name} onChange={(e) => setMemberForm({ ...memberForm, name: e.target.value })} placeholder="Name" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
-                    <input value={memberForm.phone} onChange={(e) => setMemberForm({ ...memberForm, phone: e.target.value })} placeholder="Telefon (optional)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
-                    <input value={memberForm.email} onChange={(e) => setMemberForm({ ...memberForm, email: e.target.value })} placeholder="E-Mail (optional)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
-                    <input value={memberForm.note} onChange={(e) => setMemberForm({ ...memberForm, note: e.target.value })} placeholder="Notiz (optional)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
-                    <button
-                      onClick={() => {
-                        addMember(memberForm.name, memberForm.phone, memberForm.email, memberForm.note);
-                        setMemberForm({ name: "", phone: "", email: "", note: "" });
-                      }}
-                      className="text-sm font-bold py-2 rounded-lg bg-emerald-700 text-white"
-                    >
-                      Mitglied hinzufügen
                     </button>
                   </div>
                 )}
