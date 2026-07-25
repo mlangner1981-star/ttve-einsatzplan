@@ -3348,27 +3348,60 @@ export default function Einsatzplan() {
 
       {view === "admin" && canManageTeam && (
         <main className="max-w-2xl mx-auto px-5 mt-4 ttve-fadein">
-          <div className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-5">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-red-700 dark:text-red-400 uppercase tracking-wide mb-1.5">
-              <AlertTriangle size={13} /> Admin-Bereich
+          {/* Kopfbereich */}
+          <div className="rounded-xl bg-gradient-to-br from-emerald-700 to-emerald-900 text-white p-5 mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
+                <Shield size={20} />
+              </div>
+              <div>
+                <div className="font-black text-lg leading-tight">Admin-Bereich</div>
+                <div className="text-emerald-200 text-xs">
+                  {authUser?.email}
+                  {myEinsatzplanRole && <span className="text-emerald-300"> · {myEinsatzplanRole}</span>}
+                </div>
+              </div>
             </div>
-            <p className="text-xs text-red-700 dark:text-red-400 mb-3">
-              Setzt Zusagen, Absagen, Notizen und Ersatzspieler für <strong>alle Mannschaften</strong>{" "}
-              (Hin- und Rückrunde) zurück. Spielpläne, Adressen und Kader bleiben unverändert.
-            </p>
-            <button
-              onClick={resetEverything}
-              disabled={resetAllLoading}
-              className="w-full flex items-center justify-center gap-1.5 text-sm font-bold py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white disabled:opacity-60"
-            >
-              {resetAllLoading ? (
-                <Loader2 size={15} className="animate-spin" />
-              ) : (
-                <Trash2 size={15} />
-              )}
-              Alle Rückmeldungen aller Mannschaften zurücksetzen
-            </button>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="bg-white/10 rounded-lg py-2">
+                <div className="text-xl font-black">{allTeams.length}</div>
+                <div className="text-[10px] text-emerald-200">Mannschaften</div>
+              </div>
+              <div className="bg-white/10 rounded-lg py-2">
+                <div className="text-xl font-black">{matches.length}</div>
+                <div className="text-[10px] text-emerald-200">Spiele ({team.short})</div>
+              </div>
+              <div className="bg-white/10 rounded-lg py-2">
+                <div className="text-xl font-black">{team.players.length}</div>
+                <div className="text-[10px] text-emerald-200">Kader ({team.short})</div>
+              </div>
+            </div>
           </div>
+
+          {/* Zugriffsübersicht aus der Vereinsverwaltung */}
+          {sharedRoles && Object.keys(sharedRoles).length > 0 && (
+            <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-5 mb-3">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wide mb-2">
+                <ShieldCheck size={13} /> Wer hat Zugriff (aus der Vereinsverwaltung)
+              </div>
+              <div className="flex flex-col gap-1">
+                {Object.entries(sharedRoles)
+                  .filter(([, role]) => EINSATZPLAN_ADMIN_ROLES.has(role))
+                  .map(([email, role]) => (
+                    <div key={email} className="flex items-center justify-between text-xs py-1 border-b border-stone-100 dark:border-stone-800 last:border-0">
+                      <span className="text-stone-600 dark:text-stone-300 truncate">{email}</span>
+                      <span className="text-emerald-700 dark:text-emerald-400 font-semibold flex-shrink-0 ml-2">{role}</span>
+                    </div>
+                  ))}
+                {Object.entries(sharedRoles).filter(([, role]) => EINSATZPLAN_ADMIN_ROLES.has(role)).length === 0 && (
+                  <p className="text-xs text-stone-400">Niemand mit passender Rolle gefunden.</p>
+                )}
+              </div>
+              <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-2">
+                Rollen selbst vergeben geht nur in der Vereinsverwaltung, nicht hier.
+              </p>
+            </div>
+          )}
 
           {/* Kaderverwaltung für die aktuell ausgewählte Mannschaft */}
           <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-5 mt-3">
@@ -3583,6 +3616,29 @@ export default function Einsatzplan() {
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Gefahrenzone - bewusst ganz unten */}
+          <div className="rounded-lg border-2 border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-5 mt-6">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-red-700 dark:text-red-400 uppercase tracking-wide mb-1.5">
+              <AlertTriangle size={13} /> Gefahrenzone
+            </div>
+            <p className="text-xs text-red-700 dark:text-red-400 mb-3">
+              Setzt Zusagen, Absagen, Notizen und Ersatzspieler für <strong>alle Mannschaften</strong>{" "}
+              (Hin- und Rückrunde) zurück. Spielpläne, Adressen und Kader bleiben unverändert.
+            </p>
+            <button
+              onClick={resetEverything}
+              disabled={resetAllLoading}
+              className="w-full flex items-center justify-center gap-1.5 text-sm font-bold py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white disabled:opacity-60"
+            >
+              {resetAllLoading ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Trash2 size={15} />
+              )}
+              Alle Rückmeldungen aller Mannschaften zurücksetzen
+            </button>
           </div>
         </main>
       )}
