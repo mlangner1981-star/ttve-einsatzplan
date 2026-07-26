@@ -1346,25 +1346,6 @@ export default function Einsatzplan() {
     logChange(me, team.label, roundLabel, `Notiz geändert bei ${opponent}`);
   };
 
-  const requestVerlegung = (matchId) => {
-    const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
-    const already = !!current.verlegungBeantragt;
-    if (already) {
-      persist({ ...data, [matchId]: { ...current, verlegungBeantragt: false } });
-      return;
-    }
-    askConfirm(
-      "Spielverlegung beim Mannschaftsführer/Verband beantragen? Das markiert den Spieltag sichtbar für alle als \"Verlegung angefragt\" – die eigentliche Absprache mit dem Gegner läuft weiterhin außerhalb der App.",
-      () => {
-        persist({ ...data, [matchId]: { ...current, verlegungBeantragt: true } });
-        const opponent = matches.find((m) => m.id === matchId)?.opponent || "Spiel";
-        const roundLabel = ROUNDS.find((r) => r.id === round)?.label || round;
-        logChange(me || authUser?.email, team.label, roundLabel, `Verlegung beantragt bei ${opponent}`);
-        showToast("Verlegung als angefragt markiert.");
-      }
-    );
-  };
-
   const addErsatzSpieler = (matchId, name) => {
     if (!name) return;
     const current = data[matchId] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
@@ -2427,42 +2408,44 @@ export default function Einsatzplan() {
             </div>
           )}
 
-          {/* Kachel-Navigation für News / Termine */}
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => setShowNews((s) => !s)}
-              className={`rounded-xl border-2 p-4 text-left transition-colors ${
-                showNews
-                  ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40"
-                  : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900"
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center">
-                  <Newspaper size={19} className="text-emerald-700 dark:text-emerald-400" />
+          {/* News / Termine - immer nur eines gleichzeitig geöffnet */}
+          <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 overflow-hidden">
+            <div className="grid grid-cols-2">
+              <button
+                onClick={() => {
+                  setShowNews((s) => !s);
+                  setShowEvents(false);
+                }}
+                className={`flex items-center gap-2.5 px-4 py-3.5 transition-colors ${
+                  showNews ? "bg-emerald-600 text-white" : "text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800"
+                }`}
+              >
+                <Newspaper size={18} className={showNews ? "text-white" : "text-emerald-600"} />
+                <div className="text-left">
+                  <div className="text-sm font-bold leading-tight">News</div>
+                  <div className={`text-[11px] leading-tight ${showNews ? "text-emerald-100" : "text-stone-400 dark:text-stone-500"}`}>
+                    {news.length > 0 ? `${news.length} Meldung${news.length > 1 ? "en" : ""}` : "Noch keine"}
+                  </div>
                 </div>
-                <ChevronDown size={16} className={`text-stone-300 dark:text-stone-600 transition-transform ${showNews ? "rotate-180" : ""}`} />
-              </div>
-              <div className="text-sm font-bold text-stone-800 dark:text-stone-100">News</div>
-              <div className="text-xs text-stone-400 dark:text-stone-500">{news.length > 0 ? `${news.length} Meldung${news.length > 1 ? "en" : ""}` : "Noch keine"}</div>
-            </button>
-            <button
-              onClick={() => setShowEvents((s) => !s)}
-              className={`rounded-xl border-2 p-4 text-left transition-colors ${
-                showEvents
-                  ? "border-amber-500 bg-amber-50 dark:bg-amber-950/40"
-                  : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900"
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900 flex items-center justify-center">
-                  <CalendarClock size={19} className="text-amber-700 dark:text-amber-400" />
+              </button>
+              <button
+                onClick={() => {
+                  setShowEvents((s) => !s);
+                  setShowNews(false);
+                }}
+                className={`flex items-center gap-2.5 px-4 py-3.5 border-l border-stone-200 dark:border-stone-800 transition-colors ${
+                  showEvents ? "bg-amber-500 text-white" : "text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800"
+                }`}
+              >
+                <CalendarClock size={18} className={showEvents ? "text-white" : "text-amber-600"} />
+                <div className="text-left">
+                  <div className="text-sm font-bold leading-tight">Termine</div>
+                  <div className={`text-[11px] leading-tight ${showEvents ? "text-amber-100" : "text-stone-400 dark:text-stone-500"}`}>
+                    {clubEvents.length > 0 ? `${clubEvents.length} anstehend` : "Noch keine"}
+                  </div>
                 </div>
-                <ChevronDown size={16} className={`text-stone-300 dark:text-stone-600 transition-transform ${showEvents ? "rotate-180" : ""}`} />
-              </div>
-              <div className="text-sm font-bold text-stone-800 dark:text-stone-100">Termine</div>
-              <div className="text-xs text-stone-400 dark:text-stone-500">{clubEvents.length > 0 ? `${clubEvents.length} anstehend` : "Noch keine"}</div>
-            </button>
+              </button>
+            </div>
           </div>
 
           {/* News */}
@@ -3195,18 +3178,6 @@ export default function Einsatzplan() {
                     </label>
                   )}
                 </div>
-
-                <button
-                  onClick={() => requestVerlegung(m.id)}
-                  className={`w-full flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-lg border mt-3 ${
-                    entry.verlegungBeantragt
-                      ? "bg-amber-500 border-amber-500 text-white"
-                      : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-500 dark:text-stone-400"
-                  }`}
-                >
-                  <CalendarClock size={13} />
-                  {entry.verlegungBeantragt ? "Verlegung angefragt (Klick zum Entfernen)" : "Spielverlegung beantragen"}
-                </button>
 
                 <button
                   onClick={() => setOpenNote(openNote === `${teamId}-${round}-${m.id}` ? null : `${teamId}-${round}-${m.id}`)}
