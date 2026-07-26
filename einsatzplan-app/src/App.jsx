@@ -41,7 +41,15 @@ import {
   ExternalLink,
   Camera,
 } from "lucide-react";
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+  sendPasswordResetEmail,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+} from "firebase/auth";
 import { getShared, setShared, getFromVereinsverwaltung, setToVereinsverwaltung } from "./storage.js";
 import { configIsMissing, auth } from "./firebase.js";
 
@@ -747,6 +755,68 @@ export default function Einsatzplan() {
       setView("admin");
     } catch (err) {
       setLoginError("Anmeldung fehlgeschlagen – E-Mail oder Passwort falsch.");
+    }
+  };
+
+  const [resetSent, setResetSent] = useState(false);
+  const handleForgotPassword = async () => {
+    if (!loginEmail.trim()) {
+      setLoginError("Bitte zuerst deine E-Mail-Adresse oben eintragen, dann auf „Passwort vergessen?“ tippen.");
+      return;
+    }
+    setLoginError("");
+    try {
+      await sendPasswordResetEmail(auth, loginEmail.trim());
+      setResetSent(true);
+    } catch (err) {
+      setLoginError("Konnte keine E-Mail senden – ist die Adresse korrekt geschrieben?");
+    }
+  };
+
+  // --- Passwort ändern (für eingeloggte Nutzer) ---
+  const [pwForm, setPwForm] = useState(null); // null = geschlossen, sonst {current, next, next2}
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwError, setPwError] = useState("");
+  const changeOwnPassword = async () => {
+    if (!pwForm) return;
+    setPwError("");
+    if (pwForm.next.length < 6) {
+      setPwError("Neues Passwort muss mindestens 6 Zeichen haben.");
+      return;
+    }
+    if (pwForm.next !== pwForm.next2) {
+      setPwError("Die beiden neuen Passwörter stimmen nicht überein.");
+      return;
+    }
+    setPwSaving(true);
+    try {
+      await updatePassword(auth.currentUser, pwForm.next);
+      setPwForm(null);
+      showToast("Passwort geändert.");
+    } catch (err) {
+      if (err?.code === "auth/requires-recent-login") {
+        // Firebase verlangt bei sicherheitsrelevanten Änderungen eine
+        // frische Anmeldung - wir fragen dafür einmalig das aktuelle
+        // Passwort ab und melden uns kurz erneut an, danach klappt's.
+        if (!pwForm.current) {
+          setPwError("Bitte zusätzlich dein aktuelles Passwort eingeben (aus Sicherheitsgründen erneut nötig).");
+          setPwSaving(false);
+          return;
+        }
+        try {
+          const cred = EmailAuthProvider.credential(authUser.email, pwForm.current);
+          await reauthenticateWithCredential(auth.currentUser, cred);
+          await updatePassword(auth.currentUser, pwForm.next);
+          setPwForm(null);
+          showToast("Passwort geändert.");
+        } catch (err2) {
+          setPwError("Aktuelles Passwort falsch, oder Sitzung abgelaufen. Bitte neu einloggen und erneut versuchen.");
+        }
+      } else {
+        setPwError(`Fehlgeschlagen: ${err?.message || "unbekannter Fehler"}`);
+      }
+    } finally {
+      setPwSaving(false);
     }
   };
 
@@ -2267,6 +2337,71 @@ export default function Einsatzplan() {
         </div>
       )}
 
+      {/* Passwort-ändern-Modal */}
+      {pwForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-5">
+          <div className="bg-white dark:bg-stone-900 rounded-lg p-5 w-full max-w-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Lock size={18} className="text-emerald-700 dark:text-emerald-400" />
+                <h2 className="font-bold text-stone-800 dark:text-stone-100">Passwort ändern</h2>
+              </div>
+              <button onClick={() => setPwForm(null)}>
+                <X size={18} className="text-stone-400" />
+              </button>
+            </div>
+            <div className="flex flex-col gap-2.5">
+              <input
+                type="password"
+                placeholder="Neues Passwort (mind. 6 Zeichen)"
+                value={pwForm.next}
+                onChange={(e) => setPwForm({ ...pwForm, next: e.target.value })}
+                className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm text-stone-800 dark:text-stone-100"
+              />
+              <input
+                type="password"
+                placeholder="Neues Passwort wiederholen"
+                value={pwForm.next2}
+                onChange={(e) => setPwForm({ ...pwForm, next2: e.target.value })}
+                className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm text-stone-800 dark:text-stone-100"
+              />
+              {pwError && (
+                <div className="text-xs text-red-600 dark:text-red-400">
+                  {pwError}
+                  {pwError.includes("erneut nötig") && (
+                    <input
+                      type="password"
+                      placeholder="Aktuelles Passwort"
+                      value={pwForm.current}
+                      onChange={(e) => setPwForm({ ...pwForm, current: e.target.value })}
+                      className="mt-2 w-full rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm text-stone-800 dark:text-stone-100"
+                    />
+                  )}
+                </div>
+              )}
+              <div className="flex gap-2 mt-1">
+                <button
+                  onClick={() => {
+                    setPwForm(null);
+                    setPwError("");
+                  }}
+                  className="flex-1 text-sm font-bold py-2 rounded border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={changeOwnPassword}
+                  disabled={pwSaving}
+                  className="flex-1 text-sm font-bold py-2 rounded bg-emerald-700 text-white disabled:opacity-60"
+                >
+                  {pwSaving ? "Speichert…" : "Ändern"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Login-Modal */}
       {showLogin && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-5">
@@ -2293,6 +2428,18 @@ export default function Einsatzplan() {
                 className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm text-stone-800 dark:text-stone-100"
               />
               {loginError && <div className="text-xs text-red-600 dark:text-red-400">{loginError}</div>}
+              {resetSent && (
+                <div className="text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 rounded px-2.5 py-2">
+                  E-Mail zum Zurücksetzen wurde verschickt (bitte auch Spam-Ordner prüfen).
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                className="text-xs text-emerald-700 dark:text-emerald-400 underline underline-offset-2 self-start"
+              >
+                Passwort vergessen?
+              </button>
               <div className="flex gap-2 mt-1">
                 <button
                   type="button"
@@ -3509,13 +3656,22 @@ export default function Einsatzplan() {
                   </div>
                 </div>
               </div>
-              <button
-                onClick={handleLogout}
-                title="Abmelden"
-                className="flex items-center gap-1 text-xs font-bold px-2.5 py-2 rounded-lg bg-white/15 hover:bg-white/25 flex-shrink-0"
-              >
-                <LogOut size={14} /> Abmelden
-              </button>
+              <div className="flex gap-2 flex-shrink-0">
+                <button
+                  onClick={() => setPwForm({ current: "", next: "", next2: "" })}
+                  title="Eigenes Passwort ändern"
+                  className="flex items-center gap-1 text-xs font-bold px-2.5 py-2 rounded-lg bg-white/15 hover:bg-white/25"
+                >
+                  <Lock size={14} /> Passwort
+                </button>
+                <button
+                  onClick={handleLogout}
+                  title="Abmelden"
+                  className="flex items-center gap-1 text-xs font-bold px-2.5 py-2 rounded-lg bg-white/15 hover:bg-white/25"
+                >
+                  <LogOut size={14} /> Abmelden
+                </button>
+              </div>
             </div>
             <div className="text-xs text-emerald-200 mt-3 bg-white/10 rounded-lg px-3 py-2">
               Kader- und Spieltag-Verwaltung unten beziehen sich auf die aktuell gewählte Mannschaft:{" "}
