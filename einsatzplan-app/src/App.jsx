@@ -1262,6 +1262,20 @@ export default function Einsatzplan() {
   const ROLE_OPTIONS = ["Administrator", "Vorstand", "Kassenwart", "Trainer", "Mannschaftsführer", "Mitglied", "Elternkonto"];
   const [roleEmailInput, setRoleEmailInput] = useState("");
   const [roleSelectInput, setRoleSelectInput] = useState("Mannschaftsführer");
+
+  // "Alle Firebase-Accounts" kann die App aus Sicherheitsgründen nicht direkt
+  // auflisten (das kann nur ein Server-Werkzeug). Als bestmögliche Näherung:
+  // jede E-Mail, die schon einmal im Änderungsverlauf aufgetaucht ist (also
+  // sich schon mal eingeloggt und etwas gemacht hat) oder bereits eine Rolle
+  // hat, wird als Vorschlag angeboten.
+  const knownEmails = useMemo(() => {
+    const set = new Set();
+    (changelog || []).forEach((c) => {
+      if (c.who && c.who.includes("@")) set.add(c.who.toLowerCase());
+    });
+    Object.keys(sharedRoles || {}).forEach((e) => set.add(e));
+    return Array.from(set).sort();
+  }, [changelog, sharedRoles]);
   const assignSharedRole = async () => {
     const email = roleEmailInput.trim().toLowerCase();
     if (!email) return;
@@ -3687,13 +3701,24 @@ export default function Einsatzplan() {
                 Neue Konten (E-Mail/Passwort) müssen weiterhin einmalig in der Firebase-Konsole
                 angelegt werden – hier vergibst du danach nur, was der Account darf.
               </p>
+              <p className="text-[11px] text-violet-600 dark:text-violet-400 mb-2">
+                {knownEmails.length > 0
+                  ? `${knownEmails.length} bekannte E-Mail${knownEmails.length > 1 ? "s" : ""} zur Auswahl (schon mal eingeloggt gewesen) – oder neue eintippen.`
+                  : "Noch keine bekannten E-Mails – einfach eintippen (Konto muss in Firebase existieren)."}
+              </p>
               <div className="flex flex-col gap-2 mb-3">
                 <input
+                  list="known-emails-list"
                   value={roleEmailInput}
                   onChange={(e) => setRoleEmailInput(e.target.value)}
                   placeholder="E-Mail-Adresse des Accounts"
                   className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm"
                 />
+                <datalist id="known-emails-list">
+                  {knownEmails.map((e) => (
+                    <option key={e} value={e} />
+                  ))}
+                </datalist>
                 <select
                   value={roleSelectInput}
                   onChange={(e) => setRoleSelectInput(e.target.value)}
