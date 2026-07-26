@@ -319,6 +319,20 @@ const CUSTOM_TEAMS_KEY = "ttv-suechteln-vorst-teams-custom";
 const ROSTER_PREFIX = "ttv-suechteln-vorst-kader-";
 const BIRTHDAYS_KEY = "ttv-suechteln-vorst-geburtstage";
 const CAPTAINS_KEY = "ttv-suechteln-vorst-mannschaftsfuehrer";
+
+// Standard-Rechtematrix (greift, solange der Administrator noch keine eigene
+// Matrix gespeichert hat). "einsatzplanAdmin" = Mannschaftsführer-Rechte hier
+// im Einsatzplan; "vvView"/"vvEdit"/"roleAdmin" betreffen die Vereinsverwaltung.
+const DEFAULT_PERMISSION_MATRIX = {
+  Administrator: { einsatzplanAdmin: true, vvView: true, vvEdit: true, roleAdmin: true },
+  Vorstand: { einsatzplanAdmin: true, vvView: true, vvEdit: true, roleAdmin: false },
+  Kassenwart: { einsatzplanAdmin: false, vvView: true, vvEdit: true, roleAdmin: false },
+  Trainer: { einsatzplanAdmin: true, vvView: false, vvEdit: false, roleAdmin: false },
+  "Mannschaftsführer": { einsatzplanAdmin: true, vvView: false, vvEdit: false, roleAdmin: false },
+  Mitglied: { einsatzplanAdmin: false, vvView: false, vvEdit: false, roleAdmin: false },
+  Elternkonto: { einsatzplanAdmin: false, vvView: false, vvEdit: false, roleAdmin: false },
+};
+const PERMISSION_MATRIX_KEY = "rechtematrix";
 const NEWS_KEY = "ttv-suechteln-vorst-news";
 const BOARD_KEY = "ttv-suechteln-vorst-vorstand";
 const EVENTS_KEY = "ttv-suechteln-vorst-termine";
@@ -1224,10 +1238,8 @@ export default function Einsatzplan() {
 
   // Geteilte Rollen aus der Vereinsverwaltung: steuert, wer im Einsatzplan
   // Mannschaftsführer-Rechte hat. Wird nur einmal beim Login geladen.
-  // Rollen, die im Einsatzplan Mannschaftsführer-Rechte bekommen (bewusst
-  // OHNE "Kassenwart"/"Mitglied"/"Elternkonto" - die haben hier nichts verloren).
-  const EINSATZPLAN_ADMIN_ROLES = useMemo(() => new Set(["Administrator", "Vorstand", "Mannschaftsführer", "Trainer"]), []);
   const [sharedRoles, setSharedRoles] = useState(null); // null = noch nicht geprüft
+  const [permissionMatrix, setPermissionMatrix] = useState(null); // null = noch nicht geladen
   useEffect(() => {
     if (!authUser) {
       setSharedRoles(null);
@@ -1244,7 +1256,24 @@ export default function Einsatzplan() {
         setSharedRoles({});
       }
     });
+    getFromVereinsverwaltung(PERMISSION_MATRIX_KEY).then((res) => {
+      if (res && res.value) {
+        try {
+          setPermissionMatrix(JSON.parse(res.value));
+        } catch {
+          setPermissionMatrix(DEFAULT_PERMISSION_MATRIX);
+        }
+      } else {
+        setPermissionMatrix(DEFAULT_PERMISSION_MATRIX);
+      }
+    });
   }, [authUser]);
+  // Effektive Matrix: gespeicherte Werte, ergänzt um Standardwerte für Rollen,
+  // die dort (noch) fehlen - so bricht nichts, wenn neue Rollen dazukommen.
+  const effectiveMatrix = useMemo(
+    () => ({ ...DEFAULT_PERMISSION_MATRIX, ...(permissionMatrix || {}) }),
+    [permissionMatrix]
+  );
 
   // Ist die Rollen-Brücke (noch) nicht erreichbar (z. B. Vereinsverwaltung
   // läuft in einem anderen Firebase-Projekt), lassen wir eingeloggte Nutzer
@@ -1254,14 +1283,29 @@ export default function Einsatzplan() {
   // einem anderen Projekt, oder es wurden noch nie Rollen vergeben), bleibt
   // es beim bisherigen Verhalten: jeder eingeloggte Account = Mannschaftsführer.
   const noRoleDataAvailable = !sharedRoles || Object.keys(sharedRoles).length === 0;
-  const canManageTeam = !!authUser && (noRoleDataAvailable || EINSATZPLAN_ADMIN_ROLES.has(myEinsatzplanRole));
+  const canManageTeam =
+    !!authUser && (noRoleDataAvailable || !!effectiveMatrix[myEinsatzplanRole]?.einsatzplanAdmin);
 
-  // Reiner Administrator-Bereich: strenger als canManageTeam - hier kommen
-  // Mannschaftsführer/Trainer/Vorstand NICHT rein, nur explizit "Administrator".
-  const isPureAdmin = !!authUser && (noRoleDataAvailable || myEinsatzplanRole === "Administrator");
+  // Reiner Administrator-Bereich: strenger als canManageTeam - nur Rollen mit
+  // "roleAdmin: true" in der Rechtematrix kommen hier rein (per Standard: nur
+  // "Administrator", aber der Administrator kann das selbst umstellen).
+  const isPureAdmin = !!authUser && (noRoleDataAvailable || !!effectiveMatrix[myEinsatzplanRole]?.roleAdmin);
   const ROLE_OPTIONS = ["Administrator", "Vorstand", "Kassenwart", "Trainer", "Mannschaftsführer", "Mitglied", "Elternkonto"];
   const [roleEmailInput, setRoleEmailInput] = useState("");
   const [roleSelectInput, setRoleSelectInput] = useState("Mannschaftsführer");
+
+  const togglePermission = async (role, key) => {
+    const current = effectiveMatrix[role] || {};
+    const next = { ...effectiveMatrix, [role]: { ...current, [key]: !current[key] } };
+    setPermissionMatrix(next);
+    try {
+      await setToVereinsverwaltung(PERMISSION_MATRIX_KEY, JSON.stringify(next));
+      logChange(authUser?.email, "Rechtematrix", "-", `${role}.${key} → ${!current[key]}`);
+    } catch (e) {
+      showToast(`Speichern fehlgeschlagen: ${e?.message || "unbekannter Fehler"}`);
+      setPermissionMatrix(effectiveMatrix); // zurückrollen
+    }
+  };
 
   const assignSharedRole = async () => {
     const email = roleEmailInput.trim().toLowerCase();
@@ -3769,6 +3813,57 @@ export default function Einsatzplan() {
             </div>
           )}
 
+          {/* Rechtematrix: Administrator legt selbst fest, was jede Rolle darf */}
+          {isPureAdmin && (
+            <div className="rounded-lg border-2 border-violet-300 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/30 p-5 mb-3">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-violet-800 dark:text-violet-400 uppercase tracking-wide mb-1.5">
+                <ShieldCheck size={13} /> Rechtematrix
+              </div>
+              <p className="text-[11px] text-violet-700 dark:text-violet-400 mb-3">
+                Legt fest, was jede Rolle darf. Antippen schaltet sofort um und speichert automatisch – gilt für Einsatzplan und Vereinsverwaltung gleichzeitig.
+              </p>
+              <div className="overflow-x-auto -mx-1">
+                <table className="w-full text-xs border-collapse min-w-[480px]">
+                  <thead>
+                    <tr className="text-left">
+                      <th className="px-1.5 py-1.5 font-bold text-violet-800 dark:text-violet-300">Rolle</th>
+                      <th className="px-1.5 py-1.5 font-bold text-violet-800 dark:text-violet-300 text-center">Einsatzplan-<br />Admin</th>
+                      <th className="px-1.5 py-1.5 font-bold text-violet-800 dark:text-violet-300 text-center">Vereinsverw.<br />ansehen</th>
+                      <th className="px-1.5 py-1.5 font-bold text-violet-800 dark:text-violet-300 text-center">Vereinsverw.<br />bearbeiten</th>
+                      <th className="px-1.5 py-1.5 font-bold text-violet-800 dark:text-violet-300 text-center">Rollen<br />vergeben</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ROLE_OPTIONS.map((role) => (
+                      <tr key={role} className="border-t border-violet-200 dark:border-violet-800">
+                        <td className="px-1.5 py-2 font-semibold text-stone-700 dark:text-stone-200 whitespace-nowrap">{role}</td>
+                        {["einsatzplanAdmin", "vvView", "vvEdit", "roleAdmin"].map((key) => (
+                          <td key={key} className="px-1.5 py-2 text-center">
+                            <button
+                              onClick={() => togglePermission(role, key)}
+                              className={`w-6 h-6 rounded-md border-2 inline-flex items-center justify-center ${
+                                effectiveMatrix[role]?.[key]
+                                  ? "bg-violet-600 border-violet-600 text-white"
+                                  : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-600"
+                              }`}
+                            >
+                              {effectiveMatrix[role]?.[key] && <Check size={13} />}
+                            </button>
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[11px] text-violet-600 dark:text-violet-400 mt-2">
+                Vorsicht bei „Rollen vergeben": Wer das für seine eigene Rolle abschaltet, kann sich
+                selbst aussperren (dann hilft nur noch eine andere Administrator-Rolle oder ein
+                direkter Eingriff in Firestore).
+              </p>
+            </div>
+          )}
+
           {/* Zugriffsübersicht aus der Vereinsverwaltung (nur lesend, für Nicht-Administratoren) */}
           {!isPureAdmin && sharedRoles && Object.keys(sharedRoles).length > 0 && (
             <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-5 mb-3">
@@ -3777,14 +3872,14 @@ export default function Einsatzplan() {
               </div>
               <div className="flex flex-col gap-1">
                 {Object.entries(sharedRoles)
-                  .filter(([, role]) => EINSATZPLAN_ADMIN_ROLES.has(role))
+                  .filter(([, role]) => effectiveMatrix[role]?.einsatzplanAdmin)
                   .map(([email, role]) => (
                     <div key={email} className="flex items-center justify-between text-xs py-1 border-b border-stone-100 dark:border-stone-800 last:border-0">
                       <span className="text-stone-600 dark:text-stone-300 truncate">{email}</span>
                       <span className="text-emerald-700 dark:text-emerald-400 font-semibold flex-shrink-0 ml-2">{role}</span>
                     </div>
                   ))}
-                {Object.entries(sharedRoles).filter(([, role]) => EINSATZPLAN_ADMIN_ROLES.has(role)).length === 0 && (
+                {Object.entries(sharedRoles).filter(([, role]) => effectiveMatrix[role]?.einsatzplanAdmin).length === 0 && (
                   <p className="text-xs text-stone-400">Niemand mit passender Rolle gefunden.</p>
                 )}
               </div>
