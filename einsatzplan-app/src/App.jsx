@@ -1263,19 +1263,6 @@ export default function Einsatzplan() {
   const [roleEmailInput, setRoleEmailInput] = useState("");
   const [roleSelectInput, setRoleSelectInput] = useState("Mannschaftsführer");
 
-  // "Alle Firebase-Accounts" kann die App aus Sicherheitsgründen nicht direkt
-  // auflisten (das kann nur ein Server-Werkzeug). Als bestmögliche Näherung:
-  // jede E-Mail, die schon einmal im Änderungsverlauf aufgetaucht ist (also
-  // sich schon mal eingeloggt und etwas gemacht hat) oder bereits eine Rolle
-  // hat, wird als Vorschlag angeboten.
-  const knownEmails = useMemo(() => {
-    const set = new Set();
-    (changelog || []).forEach((c) => {
-      if (c.who && c.who.includes("@")) set.add(c.who.toLowerCase());
-    });
-    Object.keys(sharedRoles || {}).forEach((e) => set.add(e));
-    return Array.from(set).sort();
-  }, [changelog, sharedRoles]);
   const assignSharedRole = async () => {
     const email = roleEmailInput.trim().toLowerCase();
     if (!email) return;
@@ -1714,6 +1701,20 @@ export default function Einsatzplan() {
 
   const [changelog, setChangelog] = useState(null);
   const [changelogLoading, setChangelogLoading] = useState(false);
+
+  // "Alle Firebase-Accounts" kann die App aus Sicherheitsgründen nicht direkt
+  // auflisten (das kann nur ein Server-Werkzeug). Als bestmögliche Näherung:
+  // jede E-Mail, die schon einmal im Änderungsverlauf aufgetaucht ist (also
+  // sich schon mal eingeloggt und etwas gemacht hat) oder bereits eine Rolle
+  // hat, wird als Vorschlag angeboten.
+  const knownEmails = useMemo(() => {
+    const set = new Set();
+    (changelog || []).forEach((c) => {
+      if (c.who && c.who.includes("@")) set.add(c.who.toLowerCase());
+    });
+    Object.keys(sharedRoles || {}).forEach((e) => set.add(e));
+    return Array.from(set).sort();
+  }, [changelog, sharedRoles]);
 
   const loadChangelog = async () => {
     setChangelogLoading(true);
