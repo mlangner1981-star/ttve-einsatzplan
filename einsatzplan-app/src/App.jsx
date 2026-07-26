@@ -3709,17 +3709,31 @@ export default function Einsatzplan() {
               </p>
               <div className="flex flex-col gap-2 mb-3">
                 <input
-                  list="known-emails-list"
                   value={roleEmailInput}
                   onChange={(e) => setRoleEmailInput(e.target.value)}
                   placeholder="E-Mail-Adresse des Accounts"
                   className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm"
                 />
-                <datalist id="known-emails-list">
-                  {knownEmails.map((e) => (
-                    <option key={e} value={e} />
-                  ))}
-                </datalist>
+                {knownEmails.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {knownEmails
+                      .filter((e) => !roleEmailInput.trim() || e.includes(roleEmailInput.trim().toLowerCase()))
+                      .map((e) => (
+                        <button
+                          key={e}
+                          type="button"
+                          onClick={() => setRoleEmailInput(e)}
+                          className={`text-xs font-semibold px-2.5 py-1.5 rounded-full border ${
+                            roleEmailInput.trim().toLowerCase() === e
+                              ? "bg-violet-600 border-violet-600 text-white"
+                              : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
+                          }`}
+                        >
+                          {e}
+                        </button>
+                      ))}
+                  </div>
+                )}
                 <select
                   value={roleSelectInput}
                   onChange={(e) => setRoleSelectInput(e.target.value)}
