@@ -3350,7 +3350,7 @@ export default function Einsatzplan() {
         <main className="max-w-2xl mx-auto px-5 mt-4 ttve-fadein">
           {/* Kopfbereich */}
           <div className="rounded-xl bg-gradient-to-br from-emerald-700 to-emerald-900 text-white p-5 mb-4">
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2">
               <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
                 <Shield size={20} />
               </div>
@@ -3362,19 +3362,9 @@ export default function Einsatzplan() {
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="bg-white/10 rounded-lg py-2">
-                <div className="text-xl font-black">{allTeams.length}</div>
-                <div className="text-[10px] text-emerald-200">Mannschaften</div>
-              </div>
-              <div className="bg-white/10 rounded-lg py-2">
-                <div className="text-xl font-black">{matches.length}</div>
-                <div className="text-[10px] text-emerald-200">Spiele ({team.short})</div>
-              </div>
-              <div className="bg-white/10 rounded-lg py-2">
-                <div className="text-xl font-black">{team.players.length}</div>
-                <div className="text-[10px] text-emerald-200">Kader ({team.short})</div>
-              </div>
+            <div className="text-xs text-emerald-200 mt-3 bg-white/10 rounded-lg px-3 py-2">
+              Kader- und Spieltag-Verwaltung unten beziehen sich auf die aktuell gewählte Mannschaft:{" "}
+              <strong className="text-white">{team.label}</strong>. Andere Mannschaft? Oben im Dropdown wechseln.
             </div>
           </div>
 
