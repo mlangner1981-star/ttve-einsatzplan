@@ -30,6 +30,7 @@ import {
   Shield,
   Lock,
   LockOpen,
+  LogOut,
   Pencil,
   Trash2,
   Save,
@@ -1912,26 +1913,27 @@ export default function Einsatzplan() {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              {canManageTeam && (
-                <button
-                  onClick={() => setView("admin")}
-                  title="Admin-Bereich"
-                  className={`p-2 rounded-lg ${
-                    view === "admin" ? "bg-white text-emerald-800" : "bg-emerald-800 text-emerald-200 hover:bg-emerald-700"
-                  }`}
-                >
-                  <Settings size={16} />
-                </button>
-              )}
               {!authLoading && (
                 authUser ? (
-                  <button
-                    onClick={handleLogout}
-                    title={`Eingeloggt als ${authUser.email} – zum Abmelden klicken`}
-                    className="p-2 rounded-lg bg-emerald-700 text-white"
-                  >
-                    <LockOpen size={16} />
-                  </button>
+                  canManageTeam ? (
+                    <button
+                      onClick={() => setView("admin")}
+                      title={`Eingeloggt als ${authUser.email} – zum Admin-Bereich`}
+                      className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-bold ${
+                        view === "admin" ? "bg-white text-emerald-800" : "bg-emerald-700 text-white hover:bg-emerald-600"
+                      }`}
+                    >
+                      <LockOpen size={16} /> Admin
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleLogout}
+                      title={`Eingeloggt als ${authUser.email} – zum Abmelden klicken`}
+                      className="p-2 rounded-lg bg-emerald-700 text-white"
+                    >
+                      <LockOpen size={16} />
+                    </button>
+                  )
                 ) : (
                   <button
                     onClick={() => setShowLogin(true)}
@@ -3350,17 +3352,26 @@ export default function Einsatzplan() {
         <main className="max-w-2xl mx-auto px-5 mt-4 ttve-fadein">
           {/* Kopfbereich */}
           <div className="rounded-xl bg-gradient-to-br from-emerald-700 to-emerald-900 text-white p-5 mb-4">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
-                <Shield size={20} />
-              </div>
-              <div>
-                <div className="font-black text-lg leading-tight">Admin-Bereich</div>
-                <div className="text-emerald-200 text-xs">
-                  {authUser?.email}
-                  {myEinsatzplanRole && <span className="text-emerald-300"> · {myEinsatzplanRole}</span>}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
+                  <Shield size={20} />
+                </div>
+                <div>
+                  <div className="font-black text-lg leading-tight">Admin-Bereich</div>
+                  <div className="text-emerald-200 text-xs">
+                    {authUser?.email}
+                    {myEinsatzplanRole && <span className="text-emerald-300"> · {myEinsatzplanRole}</span>}
+                  </div>
                 </div>
               </div>
+              <button
+                onClick={handleLogout}
+                title="Abmelden"
+                className="flex items-center gap-1 text-xs font-bold px-2.5 py-2 rounded-lg bg-white/15 hover:bg-white/25 flex-shrink-0"
+              >
+                <LogOut size={14} /> Abmelden
+              </button>
             </div>
             <div className="text-xs text-emerald-200 mt-3 bg-white/10 rounded-lg px-3 py-2">
               Kader- und Spieltag-Verwaltung unten beziehen sich auf die aktuell gewählte Mannschaft:{" "}
