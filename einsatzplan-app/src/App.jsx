@@ -3064,9 +3064,9 @@ export default function Einsatzplan() {
                         : " – noch offen";
                     const style =
                       st === "yes"
-                        ? "bg-emerald-100 dark:bg-emerald-950 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                        ? "bg-emerald-600 border-emerald-700 text-white"
                         : st === "no"
-                        ? "bg-red-100 dark:bg-red-950 border-red-300 dark:border-red-800 text-red-800 dark:text-red-300"
+                        ? "bg-red-600 border-red-700 text-white"
                         : st === "request"
                         ? "bg-sky-100 dark:bg-sky-950 border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-300"
                         : st === "unclear"
