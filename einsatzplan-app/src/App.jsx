@@ -846,13 +846,8 @@ export default function Einsatzplan() {
     const upcoming = matches
       .filter((m) => m.date && matchToDate(m) > new Date(now.getTime() - 3 * 3600 * 1000))
       .sort((a, b) => matchToDate(a) - matchToDate(b));
-    if (upcoming.length === 0) return null;
-    if (me) {
-      const myNext = upcoming.find((m) => data[m.id]?.availability?.[me] === "yes");
-      if (myNext) return myNext;
-    }
-    return upcoming[0];
-  }, [matches, data, me]);
+    return upcoming.length > 0 ? upcoming[0] : null;
+  }, [matches]);
 
   // 72h-Hinweis: steht ein Spiel bald an und ist noch nicht voll besetzt?
   const urgentGap = useMemo(() => {
@@ -2718,6 +2713,25 @@ export default function Einsatzplan() {
       {/* Meine Spiele: nur eigene "Ich spiele"-Zusagen + Ersatzspieler-Einsätze */}
       {view === "mine" && (
         <main className="max-w-2xl mx-auto px-5 mt-4 flex flex-col gap-3 ttve-fadein">
+          {!mineLoading && !mineError && (() => {
+            const myNext = mineUpcoming.find((item) => item.role === "spielt");
+            if (!myNext) return null;
+            return (
+              <div className="rounded-xl bg-white dark:bg-stone-900 border-2 border-emerald-500 dark:border-emerald-600 p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Mein nächstes Spiel</span>
+                  <span className="text-xs font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-full">{formatCountdown(myNext.match)}</span>
+                </div>
+                <div className="text-lg font-black leading-tight text-stone-800 dark:text-stone-100">
+                  {myNext.match.weekday}, {myNext.match.date}
+                </div>
+                <div className="text-stone-500 dark:text-stone-400 text-sm mb-1">
+                  {myNext.match.time} Uhr · {myNext.match.home ? "Heim" : "Auswärts"} · {myNext.team.label}
+                </div>
+                <div className="text-base font-bold text-stone-800 dark:text-stone-100">{myNext.match.opponent}</div>
+              </div>
+            );
+          })()}
           {mineLoading && <MatchSkeleton count={3} />}
           {mineError && (
             <div className="flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded px-3 py-2">
