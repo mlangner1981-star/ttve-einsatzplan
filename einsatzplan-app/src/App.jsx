@@ -1889,7 +1889,7 @@ export default function Einsatzplan() {
                 className="w-9 h-9 rounded-full bg-white p-0.5 flex-shrink-0 object-contain"
               />
               <div>
-                <h1 className="text-xl font-black tracking-tight uppercase leading-none">Einsatzplan</h1>
+                <h1 className="text-lg font-bold tracking-tight uppercase leading-none">Einsatzplan</h1>
                 <div className="text-emerald-300 text-[11px]">Saison 2026/27</div>
               </div>
             </div>
@@ -2308,7 +2308,7 @@ export default function Einsatzplan() {
           <button
             onClick={handleRefresh}
             title="Neueste Rückmeldungen laden"
-            className="flex items-center justify-center w-9 h-9 rounded-lg bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700 flex-shrink-0"
+            className="flex items-center justify-center w-9 h-9 rounded-full bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900 flex-shrink-0"
           >
             <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
           </button>
@@ -2316,7 +2316,7 @@ export default function Einsatzplan() {
             <button
               onClick={() => downloadICS(team, round)}
               title="Alle Spiele dieser Runde als Kalender-Datei exportieren"
-              className="flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-lg bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700 flex-shrink-0"
+              className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-full bg-sky-50 dark:bg-sky-950 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900 flex-shrink-0"
             >
               <CalendarDays size={14} /> .ics
             </button>
@@ -2605,7 +2605,9 @@ export default function Einsatzplan() {
 
           {!clubLoading && !clubError && clubByDate.length === 0 && (
             <div className="flex flex-col items-center text-center text-sm text-stone-400 dark:text-stone-500 py-10">
-              <Inbox size={26} className="mb-2 text-stone-300 dark:text-stone-600" />
+              <div className="w-14 h-14 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center mb-3">
+                <Inbox size={24} className="text-stone-300 dark:text-stone-600" />
+              </div>
               Keine anstehenden Spiele gefunden.
             </div>
           )}
@@ -2696,7 +2698,9 @@ export default function Einsatzplan() {
           )}
           {!mineLoading && !mineError && mineUpcoming.length === 0 && (
             <div className="flex flex-col items-center text-center text-sm text-stone-400 dark:text-stone-500 py-10 px-4">
-              <Inbox size={26} className="mb-2 text-stone-300 dark:text-stone-600" />
+              <div className="w-14 h-14 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center mb-3">
+                <Inbox size={24} className="text-stone-300 dark:text-stone-600" />
+              </div>
               Keine Spiele gefunden. Hier erscheinen nur Spiele, bei denen du selbst „Ich spiele"
               angeklickt hast, oder bei denen dich jemand als Ersatzspieler für eine andere
               Mannschaft eingetragen hat.
@@ -2758,7 +2762,7 @@ export default function Einsatzplan() {
 
       {/* Match cards */}
       {view === "cards" && (
-      <main className="max-w-2xl mx-auto px-5 mt-4 flex flex-col gap-3 ttve-fadein">
+      <main className="max-w-2xl mx-auto px-5 mt-4 flex flex-col gap-4 ttve-fadein">
         {dashboardMatch && (() => {
           const dEntry = data[dashboardMatch.id] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
           const dAvail = dEntry.availability || {};
@@ -2791,7 +2795,9 @@ export default function Einsatzplan() {
 
         {matches.length === 0 && (
           <div className="flex flex-col items-center text-center text-sm text-stone-400 dark:text-stone-500 py-10">
-            <Inbox size={26} className="mb-2 text-stone-300 dark:text-stone-600" />
+            <div className="w-14 h-14 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center mb-3">
+                <Inbox size={24} className="text-stone-300 dark:text-stone-600" />
+              </div>
             Noch keine Spiele für die {ROUNDS.find((r) => r.id === round).label} eingetragen.
             {authUser && " Nutze unten „Spieltag hinzufügen“."}
           </div>
@@ -3030,14 +3036,14 @@ export default function Einsatzplan() {
                         : " – noch offen";
                     const style =
                       st === "yes"
-                        ? "bg-emerald-600 border-emerald-700 text-white"
+                        ? "bg-emerald-100 dark:bg-emerald-950 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
                         : st === "no"
-                        ? "bg-red-600 border-red-700 text-white"
+                        ? "bg-red-100 dark:bg-red-950 border-red-300 dark:border-red-800 text-red-800 dark:text-red-300"
                         : st === "request"
-                        ? "bg-sky-600 border-sky-700 text-white"
+                        ? "bg-sky-100 dark:bg-sky-950 border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-300"
                         : st === "unclear"
-                        ? "bg-amber-500 border-amber-600 text-white"
-                        : "bg-stone-200 dark:bg-stone-700 border-stone-300 dark:border-stone-600 text-stone-500 dark:text-stone-400";
+                        ? "bg-amber-100 dark:bg-amber-950 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300"
+                        : "bg-stone-100 dark:bg-stone-800 border-stone-300 dark:border-stone-600 text-stone-500 dark:text-stone-400";
                     return (
                       <span
                         key={p}
