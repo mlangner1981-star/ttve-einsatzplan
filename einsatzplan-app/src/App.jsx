@@ -324,15 +324,16 @@ const CAPTAINS_KEY = "ttv-suechteln-vorst-mannschaftsfuehrer";
 // Matrix gespeichert hat). "einsatzplanAdmin" = Mannschaftsführer-Rechte hier
 // im Einsatzplan; "vvView"/"vvEdit"/"roleAdmin" betreffen die Vereinsverwaltung.
 const DEFAULT_PERMISSION_MATRIX = {
-  Administrator: { einsatzplanAdmin: true, vvView: true, vvEdit: true, roleAdmin: true },
-  Vorstand: { einsatzplanAdmin: true, vvView: true, vvEdit: true, roleAdmin: false },
-  Kassenwart: { einsatzplanAdmin: false, vvView: true, vvEdit: true, roleAdmin: false },
-  Trainer: { einsatzplanAdmin: true, vvView: false, vvEdit: false, roleAdmin: false },
-  "Mannschaftsführer": { einsatzplanAdmin: true, vvView: false, vvEdit: false, roleAdmin: false },
-  Mitglied: { einsatzplanAdmin: false, vvView: false, vvEdit: false, roleAdmin: false },
-  Elternkonto: { einsatzplanAdmin: false, vvView: false, vvEdit: false, roleAdmin: false },
+  Administrator: { einsatzplanAdmin: true, vvView: true, vvEdit: true, roleAdmin: true, scopeToOwnTeam: false },
+  Vorstand: { einsatzplanAdmin: true, vvView: true, vvEdit: true, roleAdmin: false, scopeToOwnTeam: false },
+  Kassenwart: { einsatzplanAdmin: false, vvView: true, vvEdit: true, roleAdmin: false, scopeToOwnTeam: false },
+  Trainer: { einsatzplanAdmin: true, vvView: false, vvEdit: false, roleAdmin: false, scopeToOwnTeam: false },
+  "Mannschaftsführer": { einsatzplanAdmin: true, vvView: false, vvEdit: false, roleAdmin: false, scopeToOwnTeam: true },
+  Mitglied: { einsatzplanAdmin: false, vvView: false, vvEdit: false, roleAdmin: false, scopeToOwnTeam: false },
+  Sportwart: { einsatzplanAdmin: true, vvView: true, vvEdit: true, roleAdmin: false, scopeToOwnTeam: false },
 };
 const PERMISSION_MATRIX_KEY = "rechtematrix";
+const ROLE_TEAM_SCOPE_KEY = "rollenteams"; // email -> [teamId, teamId, ...] (nur relevant bei scopeToOwnTeam-Rollen)
 const NEWS_KEY = "ttv-suechteln-vorst-news";
 const BOARD_KEY = "ttv-suechteln-vorst-vorstand";
 const EVENTS_KEY = "ttv-suechteln-vorst-termine";
@@ -1240,6 +1241,7 @@ export default function Einsatzplan() {
   // Mannschaftsführer-Rechte hat. Wird nur einmal beim Login geladen.
   const [sharedRoles, setSharedRoles] = useState(null); // null = noch nicht geprüft
   const [permissionMatrix, setPermissionMatrix] = useState(null); // null = noch nicht geladen
+  const [roleTeamScopes, setRoleTeamScopes] = useState(null); // email -> [teamId, ...]
   useEffect(() => {
     if (!authUser) {
       setSharedRoles(null);
@@ -1267,6 +1269,17 @@ export default function Einsatzplan() {
         setPermissionMatrix(DEFAULT_PERMISSION_MATRIX);
       }
     });
+    getFromVereinsverwaltung(ROLE_TEAM_SCOPE_KEY).then((res) => {
+      if (res && res.value) {
+        try {
+          setRoleTeamScopes(JSON.parse(res.value));
+        } catch {
+          setRoleTeamScopes({});
+        }
+      } else {
+        setRoleTeamScopes({});
+      }
+    });
   }, [authUser]);
   // Effektive Matrix: gespeicherte Werte, ergänzt um Standardwerte für Rollen,
   // die dort (noch) fehlen - so bricht nichts, wenn neue Rollen dazukommen.
@@ -1288,15 +1301,27 @@ export default function Einsatzplan() {
     return Array.isArray(val) ? val : [val];
   }, [authUser, sharedRoles]);
   const noRoleDataAvailable = !sharedRoles || Object.keys(sharedRoles).length === 0;
+  // Mannschaften, für die diese Person konkret zuständig ist (nur relevant,
+  // falls ALLE ihre Admin-Rollen "nur eigene Mannschaft" gesetzt haben).
+  const myAssignedTeamIds =
+    authUser && roleTeamScopes ? roleTeamScopes[authUser.email.toLowerCase()] || [] : [];
+  const hasUnrestrictedTeamAccess = myEinsatzplanRoles.some(
+    (r) => effectiveMatrix[r]?.einsatzplanAdmin && !effectiveMatrix[r]?.scopeToOwnTeam
+  );
+  const hasScopedTeamAccess = myEinsatzplanRoles.some(
+    (r) => effectiveMatrix[r]?.einsatzplanAdmin && effectiveMatrix[r]?.scopeToOwnTeam
+  );
   const canManageTeam =
     !!authUser &&
-    (noRoleDataAvailable || myEinsatzplanRoles.some((r) => effectiveMatrix[r]?.einsatzplanAdmin));
+    (noRoleDataAvailable ||
+      hasUnrestrictedTeamAccess ||
+      (hasScopedTeamAccess && myAssignedTeamIds.includes(teamId)));
 
   // Reiner Administrator-Bereich: strenger als canManageTeam - nur wer (unter
   // seinen Rollen) mindestens eine mit "roleAdmin: true" hat, kommt hier rein.
   const isPureAdmin =
     !!authUser && (noRoleDataAvailable || myEinsatzplanRoles.some((r) => effectiveMatrix[r]?.roleAdmin));
-  const ROLE_OPTIONS = ["Administrator", "Vorstand", "Kassenwart", "Trainer", "Mannschaftsführer", "Mitglied", "Elternkonto"];
+  const ROLE_OPTIONS = ["Administrator", "Vorstand", "Sportwart", "Kassenwart", "Trainer", "Mannschaftsführer", "Mitglied"];
   const [roleEmailInput, setRoleEmailInput] = useState("");
   const [roleSelectInput, setRoleSelectInput] = useState(["Mannschaftsführer"]); // jetzt Array = Mehrfachauswahl
   const toggleRoleSelectInput = (role) => {
@@ -1316,6 +1341,12 @@ export default function Einsatzplan() {
     }
   };
 
+  const [roleTeamSelectInput, setRoleTeamSelectInput] = useState([]); // Team-IDs für "nur eigene Mannschaft"-Rollen
+  const toggleRoleTeamSelectInput = (tId) => {
+    setRoleTeamSelectInput((prev) => (prev.includes(tId) ? prev.filter((x) => x !== tId) : [...prev, tId]));
+  };
+  const needsTeamScope = roleSelectInput.some((r) => effectiveMatrix[r]?.scopeToOwnTeam);
+
   const assignSharedRole = async () => {
     const email = roleEmailInput.trim().toLowerCase();
     if (!email) return;
@@ -1323,12 +1354,27 @@ export default function Einsatzplan() {
       showToast("Bitte mindestens eine Rolle auswählen.");
       return;
     }
+    if (needsTeamScope && roleTeamSelectInput.length === 0) {
+      showToast("Bitte mindestens eine Mannschaft auswählen (für Mannschaftsführer-Rolle nötig).");
+      return;
+    }
     const next = { ...(sharedRoles || {}), [email]: roleSelectInput };
+    const nextTeams = { ...(roleTeamScopes || {}) };
+    if (needsTeamScope) nextTeams[email] = roleTeamSelectInput;
+    else delete nextTeams[email];
     try {
       await setToVereinsverwaltung("rollen", JSON.stringify(next));
+      await setToVereinsverwaltung(ROLE_TEAM_SCOPE_KEY, JSON.stringify(nextTeams));
       setSharedRoles(next);
-      logChange(authUser?.email, "Rollen", "-", `${email} → ${roleSelectInput.join(", ")}`);
+      setRoleTeamScopes(nextTeams);
+      logChange(
+        authUser?.email,
+        "Rollen",
+        "-",
+        `${email} → ${roleSelectInput.join(", ")}${needsTeamScope ? ` (Teams: ${roleTeamSelectInput.join(", ")})` : ""}`
+      );
       setRoleEmailInput("");
+      setRoleTeamSelectInput([]);
       showToast("Rollen gespeichert.");
     } catch (e) {
       showToast(`Speichern fehlgeschlagen: ${e?.message || "unbekannter Fehler"}`);
@@ -1337,9 +1383,13 @@ export default function Einsatzplan() {
   const removeSharedRole = async (email) => {
     const next = { ...(sharedRoles || {}) };
     delete next[email];
+    const nextTeams = { ...(roleTeamScopes || {}) };
+    delete nextTeams[email];
     try {
       await setToVereinsverwaltung("rollen", JSON.stringify(next));
+      await setToVereinsverwaltung(ROLE_TEAM_SCOPE_KEY, JSON.stringify(nextTeams));
       setSharedRoles(next);
+      setRoleTeamScopes(nextTeams);
       logChange(authUser?.email, "Rollen", "-", `${email} entfernt`);
     } catch (e) {
       showToast(`Speichern fehlgeschlagen: ${e?.message || "unbekannter Fehler"}`);
@@ -3810,6 +3860,29 @@ export default function Einsatzplan() {
                 <p className="text-[11px] text-violet-600 dark:text-violet-400">
                   Mehrfachauswahl möglich (z. B. Mannschaftsführer + Vorstand gleichzeitig).
                 </p>
+                {needsTeamScope && (
+                  <div className="rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3">
+                    <p className="text-[11px] font-bold text-amber-800 dark:text-amber-400 mb-2">
+                      Für welche Mannschaft(en) gilt das? (Mannschaftsführer-Rolle ist auf die eigene(n) Mannschaft(en) begrenzt)
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {allTeams.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => toggleRoleTeamSelectInput(t.id)}
+                          className={`text-xs font-semibold px-2.5 py-1.5 rounded-full border ${
+                            roleTeamSelectInput.includes(t.id)
+                              ? "bg-amber-500 border-amber-500 text-white"
+                              : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
+                          }`}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <button onClick={assignSharedRole} className="text-sm font-bold py-2.5 rounded-lg bg-violet-700 hover:bg-violet-800 text-white">
                   Rolle(n) zuweisen
                 </button>
@@ -3818,11 +3891,16 @@ export default function Einsatzplan() {
                 <div className="flex flex-col gap-1">
                   {Object.entries(sharedRoles).map(([email, roleVal]) => {
                     const rolesArr = Array.isArray(roleVal) ? roleVal : [roleVal];
+                    const teamIds = (roleTeamScopes && roleTeamScopes[email]) || [];
+                    const teamLabels = teamIds.map((id) => allTeams.find((t) => t.id === id)?.label || id);
                     return (
                       <div key={email} className="flex items-center justify-between bg-white dark:bg-stone-900 rounded px-3 py-2 text-xs">
                         <div>
                           <div className="text-stone-700 dark:text-stone-200 font-semibold">{email}</div>
                           <div className="text-violet-700 dark:text-violet-400">{rolesArr.join(", ")}</div>
+                          {teamLabels.length > 0 && (
+                            <div className="text-amber-700 dark:text-amber-400 text-[11px] mt-0.5">nur: {teamLabels.join(", ")}</div>
+                          )}
                         </div>
                         <button onClick={() => removeSharedRole(email)} className="p-1 text-stone-400 hover:text-red-600">
                           <X size={14} />
@@ -3855,13 +3933,14 @@ export default function Einsatzplan() {
                       <th className="px-1.5 py-1.5 font-bold text-violet-800 dark:text-violet-300 text-center">Vereinsverw.<br />ansehen</th>
                       <th className="px-1.5 py-1.5 font-bold text-violet-800 dark:text-violet-300 text-center">Vereinsverw.<br />bearbeiten</th>
                       <th className="px-1.5 py-1.5 font-bold text-violet-800 dark:text-violet-300 text-center">Rollen<br />vergeben</th>
+                      <th className="px-1.5 py-1.5 font-bold text-violet-800 dark:text-violet-300 text-center">Nur eigene<br />Mannschaft</th>
                     </tr>
                   </thead>
                   <tbody>
                     {ROLE_OPTIONS.map((role) => (
                       <tr key={role} className="border-t border-violet-200 dark:border-violet-800">
                         <td className="px-1.5 py-2 font-semibold text-stone-700 dark:text-stone-200 whitespace-nowrap">{role}</td>
-                        {["einsatzplanAdmin", "vvView", "vvEdit", "roleAdmin"].map((key) => (
+                        {["einsatzplanAdmin", "vvView", "vvEdit", "roleAdmin", "scopeToOwnTeam"].map((key) => (
                           <td key={key} className="px-1.5 py-2 text-center">
                             <button
                               onClick={() => togglePermission(role, key)}
