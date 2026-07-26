@@ -308,6 +308,7 @@ const CHANGELOG_MAX = 50;
 const CUSTOM_TEAMS_KEY = "ttv-suechteln-vorst-teams-custom";
 const ROSTER_PREFIX = "ttv-suechteln-vorst-kader-";
 const BIRTHDAYS_KEY = "ttv-suechteln-vorst-geburtstage";
+const CAPTAINS_KEY = "ttv-suechteln-vorst-mannschaftsfuehrer";
 const NEWS_KEY = "ttv-suechteln-vorst-news";
 const BOARD_KEY = "ttv-suechteln-vorst-vorstand";
 const EVENTS_KEY = "ttv-suechteln-vorst-termine";
@@ -1446,6 +1447,33 @@ export default function Einsatzplan() {
     setBirthdays(next);
     try {
       await setShared(BIRTHDAYS_KEY, JSON.stringify(next));
+    } catch (e) {
+      showToast(`Speichern fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
+    }
+  };
+
+  // Mannschaftsführer ("Kapitän") je Mannschaft - teamId -> Spielername.
+  const [captains, setCaptains] = useState({});
+  const loadCaptains = useCallback(async () => {
+    try {
+      const res = await getShared(CAPTAINS_KEY);
+      setCaptains(res && res.value ? JSON.parse(res.value) : {});
+    } catch (e) {
+      setCaptains({});
+    }
+  }, []);
+  useEffect(() => {
+    loadCaptains();
+  }, [loadCaptains]);
+
+  const setCaptain = async (teamIdToSet, name) => {
+    const next = { ...captains };
+    if (name) next[teamIdToSet] = name;
+    else delete next[teamIdToSet];
+    setCaptains(next);
+    try {
+      await setShared(CAPTAINS_KEY, JSON.stringify(next));
+      logChange(authUser?.email, allTeams.find((t) => t.id === teamIdToSet)?.label || teamIdToSet, "-", name ? `Mannschaftsführer: ${name}` : "Mannschaftsführer entfernt");
     } catch (e) {
       showToast(`Speichern fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
     }
@@ -3047,12 +3075,17 @@ export default function Einsatzplan() {
                     return (
                       <span
                         key={p}
-                        title={`${p}${label}`}
-                        className={`text-[11px] font-bold px-2 py-1 rounded-full border ${style} ${
+                        title={`${p}${label}${captains[team.id] === p ? " (Mannschaftsführer)" : ""}`}
+                        className={`relative text-[11px] font-bold px-2 py-1 rounded-full border ${style} ${
                           p === me ? "ring-2 ring-stone-900 dark:ring-stone-100 ring-offset-1 dark:ring-offset-stone-950" : ""
                         }`}
                       >
                         {initials(p)}
+                        {captains[team.id] === p && (
+                          <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-amber-500 text-white text-[8px] font-black flex items-center justify-center border border-white dark:border-stone-950">
+                            C
+                          </span>
+                        )}
                       </span>
                     );
                   })}
@@ -3386,26 +3419,45 @@ export default function Einsatzplan() {
             <div className="flex items-center gap-1.5 text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wide mb-2">
               <Users size={13} /> Kader verwalten – {team.label}
             </div>
-            <div className="flex flex-wrap gap-1.5 mb-3">
+            <div className="flex flex-wrap gap-1.5 mb-1">
               {team.players.length === 0 && (
                 <span className="text-xs text-stone-400 dark:text-stone-500">Noch keine Spieler eingetragen.</span>
               )}
-              {team.players.map((p) => (
-                <span
-                  key={p}
-                  className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-200"
-                >
-                  {p}
-                  <button
-                    onClick={() => removePlayerFromRoster(p)}
-                    className="text-stone-400 hover:text-red-600 dark:hover:text-red-400"
-                    title={`${p} entfernen`}
+              {team.players.map((p) => {
+                const isCaptain = captains[team.id] === p;
+                return (
+                  <span
+                    key={p}
+                    className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${
+                      isCaptain
+                        ? "bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
+                        : "bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-200"
+                    }`}
                   >
-                    <X size={12} />
-                  </button>
-                </span>
-              ))}
+                    <button
+                      onClick={() => setCaptain(team.id, isCaptain ? null : p)}
+                      title={isCaptain ? `${p} als Mannschaftsführer entfernen` : `${p} zum Mannschaftsführer machen`}
+                      className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0 ${
+                        isCaptain ? "bg-amber-500 text-white" : "bg-stone-300 dark:bg-stone-600 text-stone-500 dark:text-stone-300 hover:bg-amber-400 hover:text-white"
+                      }`}
+                    >
+                      C
+                    </button>
+                    {p}
+                    <button
+                      onClick={() => removePlayerFromRoster(p)}
+                      className="text-stone-400 hover:text-red-600 dark:hover:text-red-400"
+                      title={`${p} entfernen`}
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                );
+              })}
             </div>
+            <p className="text-[11px] text-stone-400 dark:text-stone-500 mb-3">
+              „C" antippen, um den Mannschaftsführer dieser Mannschaft festzulegen (max. einer).
+            </p>
             <div className="flex gap-2">
               <input
                 type="text"
