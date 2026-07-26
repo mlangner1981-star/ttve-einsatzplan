@@ -57,3 +57,14 @@ export async function getFromVereinsverwaltung(key) {
     return null;
   }
 }
+
+// Schreibender Gegenpart - bewusst nur für die Rollen-Verwaltung gedacht
+// (Administratoren im Einsatzplan sollen Rechte vergeben können, ohne in
+// die Vereinsverwaltung wechseln zu müssen). Schreibt in dieselbe Sammlung,
+// die auch die Vereinsverwaltung nutzt - beide Apps sehen denselben Stand.
+export async function setToVereinsverwaltung(key, value) {
+  if (!db) throw new Error("Firebase ist nicht konfiguriert.");
+  const ref = doc(db, VEREINSVERWALTUNG_COLLECTION, key);
+  await withTimeout(setDoc(ref, { value, updatedAt: Date.now() }), "Speichern (Vereinsverwaltung)");
+  return { key, value };
+}
