@@ -3967,28 +3967,17 @@ export default function Einsatzplan() {
             </div>
           )}
 
-          {/* Zugriffsübersicht aus der Vereinsverwaltung (nur lesend, für Nicht-Administratoren) */}
-          {!isPureAdmin && sharedRoles && Object.keys(sharedRoles).length > 0 && (
+          {/* Für Nicht-Administratoren: nur die eigene(n) Rolle(n), keine Gesamtübersicht */}
+          {!isPureAdmin && (
             <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-5 mb-3">
               <div className="flex items-center gap-1.5 text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wide mb-2">
-                <ShieldCheck size={13} /> Wer hat Zugriff (aus der Vereinsverwaltung)
+                <ShieldCheck size={13} /> Meine Rolle
               </div>
-              <div className="flex flex-col gap-1">
-                {Object.entries(sharedRoles)
-                  .map(([email, roleVal]) => [email, Array.isArray(roleVal) ? roleVal : [roleVal]])
-                  .filter(([, rolesArr]) => rolesArr.some((r) => effectiveMatrix[r]?.einsatzplanAdmin))
-                  .map(([email, rolesArr]) => (
-                    <div key={email} className="flex items-center justify-between text-xs py-1 border-b border-stone-100 dark:border-stone-800 last:border-0">
-                      <span className="text-stone-600 dark:text-stone-300 truncate">{email}</span>
-                      <span className="text-emerald-700 dark:text-emerald-400 font-semibold flex-shrink-0 ml-2">{rolesArr.join(", ")}</span>
-                    </div>
-                  ))}
-                {Object.entries(sharedRoles).every(
-                  ([, roleVal]) => !(Array.isArray(roleVal) ? roleVal : [roleVal]).some((r) => effectiveMatrix[r]?.einsatzplanAdmin)
-                ) && <p className="text-xs text-stone-400">Niemand mit passender Rolle gefunden.</p>}
-              </div>
+              <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                {myEinsatzplanRoles.length > 0 ? myEinsatzplanRoles.join(", ") : "Keine Rolle zugewiesen (Standardzugriff)"}
+              </p>
               <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-2">
-                Rollen vergeben können nur Administratoren.
+                Rollen und Rechte anderer Accounts können nur Administratoren einsehen.
               </p>
             </div>
           )}
@@ -4188,6 +4177,7 @@ export default function Einsatzplan() {
             </button>
           </div>
 
+          {isPureAdmin && (
           <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-5 mt-3">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-1.5 text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wide">
@@ -4228,6 +4218,7 @@ export default function Einsatzplan() {
               </div>
             )}
           </div>
+          )}
 
           {/* Gefahrenzone - bewusst ganz unten */}
           <div className="rounded-lg border-2 border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-5 mt-6">
