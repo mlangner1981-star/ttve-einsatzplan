@@ -28,6 +28,7 @@ import {
   Sun,
   Moon,
   Shield,
+  ShieldCheck,
   Lock,
   LockOpen,
   LogOut,
