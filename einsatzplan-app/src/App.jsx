@@ -2754,7 +2754,7 @@ export default function Einsatzplan() {
                   <div key={n.id} className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-3">
                     <div className="flex items-center justify-between">
                       <div className="font-bold text-sm text-stone-800 dark:text-stone-100">{n.title}</div>
-                      {authUser && (
+                      {canManageTeam && (
                         <button onClick={() => removeNews(n.id)} className="text-stone-300 hover:text-red-600">
                           <X size={14} />
                         </button>
@@ -2764,7 +2764,7 @@ export default function Einsatzplan() {
                     {n.text && <p className="text-xs text-stone-600 dark:text-stone-300 whitespace-pre-line">{n.text}</p>}
                   </div>
                 ))}
-                {authUser && (
+                {canManageTeam && (
                   <div className="rounded-lg border border-dashed border-stone-300 dark:border-stone-700 p-3 flex flex-col gap-2">
                     <input
                       value={newsForm.title}
@@ -2807,14 +2807,14 @@ export default function Einsatzplan() {
                         {ev.date}{ev.time && ` · ${ev.time} Uhr`}{ev.location && ` · ${ev.location}`}
                       </div>
                     </div>
-                    {authUser && (
+                    {canManageTeam && (
                       <button onClick={() => removeClubEvent(ev.id)} className="text-stone-300 hover:text-red-600">
                         <X size={14} />
                       </button>
                     )}
                   </div>
                 ))}
-                {authUser && (
+                {canManageTeam && (
                   <div className="rounded-lg border border-dashed border-stone-300 dark:border-stone-700 p-3 flex flex-col gap-2">
                     <input value={eventForm.title} onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })} placeholder="Titel (z. B. Jahreshauptversammlung)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
                     <input value={eventForm.date} onChange={(e) => setEventForm({ ...eventForm, date: e.target.value })} placeholder="Datum (TT.MM.JJJJ)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
