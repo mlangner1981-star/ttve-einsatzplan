@@ -1278,21 +1278,30 @@ export default function Einsatzplan() {
   // Ist die Rollen-Brücke (noch) nicht erreichbar (z. B. Vereinsverwaltung
   // läuft in einem anderen Firebase-Projekt), lassen wir eingeloggte Nutzer
   // wie bisher zu - sonst würde sich sonst niemand mehr einloggen können.
-  const myEinsatzplanRole = authUser && sharedRoles ? sharedRoles[authUser.email.toLowerCase()] : null;
-  // Solange die Rollen-Brücke keine Daten liefert (Vereinsverwaltung läuft in
-  // einem anderen Projekt, oder es wurden noch nie Rollen vergeben), bleibt
-  // es beim bisherigen Verhalten: jeder eingeloggte Account = Mannschaftsführer.
+  // Jede Person kann MEHRERE Rollen gleichzeitig haben (z. B. Mannschaftsführer
+  // UND Vorstand) - gespeichert als Array. Ältere Daten (einzelner String aus
+  // der Zeit vor Mehrfachrollen) werden automatisch in ein Array umgewandelt.
+  const myEinsatzplanRoles = useMemo(() => {
+    if (!authUser || !sharedRoles) return [];
+    const val = sharedRoles[authUser.email.toLowerCase()];
+    if (!val) return [];
+    return Array.isArray(val) ? val : [val];
+  }, [authUser, sharedRoles]);
   const noRoleDataAvailable = !sharedRoles || Object.keys(sharedRoles).length === 0;
   const canManageTeam =
-    !!authUser && (noRoleDataAvailable || !!effectiveMatrix[myEinsatzplanRole]?.einsatzplanAdmin);
+    !!authUser &&
+    (noRoleDataAvailable || myEinsatzplanRoles.some((r) => effectiveMatrix[r]?.einsatzplanAdmin));
 
-  // Reiner Administrator-Bereich: strenger als canManageTeam - nur Rollen mit
-  // "roleAdmin: true" in der Rechtematrix kommen hier rein (per Standard: nur
-  // "Administrator", aber der Administrator kann das selbst umstellen).
-  const isPureAdmin = !!authUser && (noRoleDataAvailable || !!effectiveMatrix[myEinsatzplanRole]?.roleAdmin);
+  // Reiner Administrator-Bereich: strenger als canManageTeam - nur wer (unter
+  // seinen Rollen) mindestens eine mit "roleAdmin: true" hat, kommt hier rein.
+  const isPureAdmin =
+    !!authUser && (noRoleDataAvailable || myEinsatzplanRoles.some((r) => effectiveMatrix[r]?.roleAdmin));
   const ROLE_OPTIONS = ["Administrator", "Vorstand", "Kassenwart", "Trainer", "Mannschaftsführer", "Mitglied", "Elternkonto"];
   const [roleEmailInput, setRoleEmailInput] = useState("");
-  const [roleSelectInput, setRoleSelectInput] = useState("Mannschaftsführer");
+  const [roleSelectInput, setRoleSelectInput] = useState(["Mannschaftsführer"]); // jetzt Array = Mehrfachauswahl
+  const toggleRoleSelectInput = (role) => {
+    setRoleSelectInput((prev) => (prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]));
+  };
 
   const togglePermission = async (role, key) => {
     const current = effectiveMatrix[role] || {};
@@ -1310,13 +1319,17 @@ export default function Einsatzplan() {
   const assignSharedRole = async () => {
     const email = roleEmailInput.trim().toLowerCase();
     if (!email) return;
+    if (roleSelectInput.length === 0) {
+      showToast("Bitte mindestens eine Rolle auswählen.");
+      return;
+    }
     const next = { ...(sharedRoles || {}), [email]: roleSelectInput };
     try {
       await setToVereinsverwaltung("rollen", JSON.stringify(next));
       setSharedRoles(next);
-      logChange(authUser?.email, "Rollen", "-", `${email} → ${roleSelectInput}`);
+      logChange(authUser?.email, "Rollen", "-", `${email} → ${roleSelectInput.join(", ")}`);
       setRoleEmailInput("");
-      showToast("Rolle gespeichert.");
+      showToast("Rollen gespeichert.");
     } catch (e) {
       showToast(`Speichern fehlgeschlagen: ${e?.message || "unbekannter Fehler"}`);
     }
@@ -3711,7 +3724,7 @@ export default function Einsatzplan() {
                 <div className="font-black text-lg leading-tight">Admin-Bereich</div>
                 <div className="text-emerald-200 text-xs truncate">
                   {authUser?.email}
-                  {myEinsatzplanRole && <span className="text-emerald-300"> · {myEinsatzplanRole}</span>}
+                  {myEinsatzplanRoles.length > 0 && <span className="text-emerald-300"> · {myEinsatzplanRoles.join(", ")}</span>}
                 </div>
               </div>
             </div>
@@ -3778,34 +3791,45 @@ export default function Einsatzplan() {
                       ))}
                   </div>
                 )}
-                <select
-                  value={roleSelectInput}
-                  onChange={(e) => setRoleSelectInput(e.target.value)}
-                  className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm"
-                >
+                <div className="flex flex-wrap gap-1.5">
                   {ROLE_OPTIONS.map((r) => (
-                    <option key={r} value={r}>
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => toggleRoleSelectInput(r)}
+                      className={`text-xs font-semibold px-2.5 py-1.5 rounded-full border ${
+                        roleSelectInput.includes(r)
+                          ? "bg-violet-600 border-violet-600 text-white"
+                          : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300"
+                      }`}
+                    >
                       {r}
-                    </option>
+                    </button>
                   ))}
-                </select>
+                </div>
+                <p className="text-[11px] text-violet-600 dark:text-violet-400">
+                  Mehrfachauswahl möglich (z. B. Mannschaftsführer + Vorstand gleichzeitig).
+                </p>
                 <button onClick={assignSharedRole} className="text-sm font-bold py-2.5 rounded-lg bg-violet-700 hover:bg-violet-800 text-white">
-                  Rolle zuweisen
+                  Rolle(n) zuweisen
                 </button>
               </div>
               {sharedRoles && Object.entries(sharedRoles).length > 0 ? (
                 <div className="flex flex-col gap-1">
-                  {Object.entries(sharedRoles).map(([email, role]) => (
-                    <div key={email} className="flex items-center justify-between bg-white dark:bg-stone-900 rounded px-3 py-2 text-xs">
-                      <div>
-                        <div className="text-stone-700 dark:text-stone-200 font-semibold">{email}</div>
-                        <div className="text-violet-700 dark:text-violet-400">{role}</div>
+                  {Object.entries(sharedRoles).map(([email, roleVal]) => {
+                    const rolesArr = Array.isArray(roleVal) ? roleVal : [roleVal];
+                    return (
+                      <div key={email} className="flex items-center justify-between bg-white dark:bg-stone-900 rounded px-3 py-2 text-xs">
+                        <div>
+                          <div className="text-stone-700 dark:text-stone-200 font-semibold">{email}</div>
+                          <div className="text-violet-700 dark:text-violet-400">{rolesArr.join(", ")}</div>
+                        </div>
+                        <button onClick={() => removeSharedRole(email)} className="p-1 text-stone-400 hover:text-red-600">
+                          <X size={14} />
+                        </button>
                       </div>
-                      <button onClick={() => removeSharedRole(email)} className="p-1 text-stone-400 hover:text-red-600">
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-xs text-violet-600 dark:text-violet-400">Noch keine Rollen vergeben.</p>
@@ -3872,16 +3896,17 @@ export default function Einsatzplan() {
               </div>
               <div className="flex flex-col gap-1">
                 {Object.entries(sharedRoles)
-                  .filter(([, role]) => effectiveMatrix[role]?.einsatzplanAdmin)
-                  .map(([email, role]) => (
+                  .map(([email, roleVal]) => [email, Array.isArray(roleVal) ? roleVal : [roleVal]])
+                  .filter(([, rolesArr]) => rolesArr.some((r) => effectiveMatrix[r]?.einsatzplanAdmin))
+                  .map(([email, rolesArr]) => (
                     <div key={email} className="flex items-center justify-between text-xs py-1 border-b border-stone-100 dark:border-stone-800 last:border-0">
                       <span className="text-stone-600 dark:text-stone-300 truncate">{email}</span>
-                      <span className="text-emerald-700 dark:text-emerald-400 font-semibold flex-shrink-0 ml-2">{role}</span>
+                      <span className="text-emerald-700 dark:text-emerald-400 font-semibold flex-shrink-0 ml-2">{rolesArr.join(", ")}</span>
                     </div>
                   ))}
-                {Object.entries(sharedRoles).filter(([, role]) => effectiveMatrix[role]?.einsatzplanAdmin).length === 0 && (
-                  <p className="text-xs text-stone-400">Niemand mit passender Rolle gefunden.</p>
-                )}
+                {Object.entries(sharedRoles).every(
+                  ([, roleVal]) => !(Array.isArray(roleVal) ? roleVal : [roleVal]).some((r) => effectiveMatrix[r]?.einsatzplanAdmin)
+                ) && <p className="text-xs text-stone-400">Niemand mit passender Rolle gefunden.</p>}
               </div>
               <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-2">
                 Rollen vergeben können nur Administratoren.
