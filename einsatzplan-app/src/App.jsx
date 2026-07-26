@@ -31,6 +31,7 @@ import {
   Lock,
   LockOpen,
   LogOut,
+  Search,
   Pencil,
   Trash2,
   Save,
@@ -887,6 +888,23 @@ export default function Einsatzplan() {
     return `in ${diffMin} Min.`;
   }
 
+  // Für die Countdown-Badge-Farbe: wird dringlicher (gelb/rot), je näher das
+  // Spiel rückt und je weniger Spieler bestätigt haben.
+  function countdownUrgency(match, confirmedCount, requiredPlayers) {
+    if (!match) return "emerald";
+    const hoursLeft = (matchToDate(match) - new Date()) / 3600000;
+    const isFull = confirmedCount >= requiredPlayers;
+    if (isFull) return "emerald";
+    if (hoursLeft <= 24) return "red";
+    if (hoursLeft <= 72) return "amber";
+    return "emerald";
+  }
+  const COUNTDOWN_BADGE_CLASSES = {
+    emerald: "bg-emerald-600 text-white",
+    amber: "bg-amber-500 text-white",
+    red: "bg-red-600 text-white",
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
     if (view === "mine") await loadMine();
@@ -1115,6 +1133,23 @@ export default function Einsatzplan() {
   }, [clubData]);
 
   const [showSeasonReview, setShowSeasonReview] = useState(false);
+  const [clubSearch, setClubSearch] = useState("");
+
+  const filteredClubByDate = useMemo(() => {
+    const q = clubSearch.trim().toLowerCase();
+    if (!q) return clubByDate;
+    return clubByDate
+      .map(([dateStr, items]) => [
+        dateStr,
+        items.filter(
+          (it) =>
+            it.team.label.toLowerCase().includes(q) ||
+            it.match.opponent.toLowerCase().includes(q) ||
+            (it.match.address || "").toLowerCase().includes(q)
+        ),
+      ])
+      .filter(([, items]) => items.length > 0);
+  }, [clubByDate, clubSearch]);
 
   // Geteilte Rollen aus der Vereinsverwaltung: steuert, wer im Einsatzplan
   // Mannschaftsführer-Rechte hat. Wird nur einmal beim Login geladen.
@@ -2626,6 +2661,26 @@ export default function Einsatzplan() {
             </div>
           )}
 
+          {!clubLoading && !clubError && clubByDate.length > 0 && (
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500" />
+              <input
+                value={clubSearch}
+                onChange={(e) => setClubSearch(e.target.value)}
+                placeholder="Mannschaft, Gegner oder Ort suchen…"
+                className="w-full rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 pl-9 pr-9 py-2.5 text-sm text-stone-800 dark:text-stone-100"
+              />
+              {clubSearch && (
+                <button
+                  onClick={() => setClubSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300"
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+          )}
+
           {!clubLoading && !clubError && clubByDate.length === 0 && (
             <div className="flex flex-col items-center text-center text-sm text-stone-400 dark:text-stone-500 py-10">
               <div className="w-14 h-14 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center mb-3">
@@ -2634,7 +2689,12 @@ export default function Einsatzplan() {
               Keine anstehenden Spiele gefunden.
             </div>
           )}
-          {clubByDate.map(([dateStr, items]) => (
+          {!clubLoading && !clubError && clubByDate.length > 0 && filteredClubByDate.length === 0 && (
+            <div className="text-center text-sm text-stone-400 dark:text-stone-500 py-8">
+              Keine Treffer für „{clubSearch}".
+            </div>
+          )}
+          {filteredClubByDate.map(([dateStr, items]) => (
             <section key={dateStr}>
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-xs font-bold uppercase tracking-wide text-stone-400 dark:text-stone-500">
@@ -2716,11 +2776,21 @@ export default function Einsatzplan() {
           {!mineLoading && !mineError && (() => {
             const myNext = mineUpcoming.find((item) => item.role === "spielt");
             if (!myNext) return null;
+            const myNextCross = crossData[`${myNext.team.id}-${myNext.round}`];
+            const myNextEntry = myNextCross?.data?.[myNext.match.id] || { availability: {}, ersatzSpieler: [] };
+            const myNextStats = computeMatchStatus(myNext.team.players, myNextEntry.availability || {}, myNext.team.requiredPlayers, myNextEntry.ersatzSpieler);
+            const urgency = countdownUrgency(myNext.match, myNextStats.confirmedCount, myNext.team.requiredPlayers);
+            const borderClass =
+              urgency === "red"
+                ? "border-red-500 dark:border-red-600"
+                : urgency === "amber"
+                ? "border-amber-500 dark:border-amber-600"
+                : "border-emerald-500 dark:border-emerald-600";
             return (
-              <div className="rounded-xl bg-white dark:bg-stone-900 border-2 border-emerald-500 dark:border-emerald-600 p-4 shadow-sm">
+              <div className={`rounded-xl bg-white dark:bg-stone-900 border-2 ${borderClass} p-4 shadow-sm`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Mein nächstes Spiel</span>
-                  <span className="text-xs font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-full">{formatCountdown(myNext.match)}</span>
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${COUNTDOWN_BADGE_CLASSES[urgency]}`}>{formatCountdown(myNext.match)}</span>
                 </div>
                 <div className="text-lg font-black leading-tight text-stone-800 dark:text-stone-100">
                   {myNext.match.weekday}, {myNext.match.date}
@@ -2728,7 +2798,18 @@ export default function Einsatzplan() {
                 <div className="text-stone-500 dark:text-stone-400 text-sm mb-1">
                   {myNext.match.time} Uhr · {myNext.match.home ? "Heim" : "Auswärts"} · {myNext.team.label}
                 </div>
-                <div className="text-base font-bold text-stone-800 dark:text-stone-100">{myNext.match.opponent}</div>
+                <div className="text-base font-bold text-stone-800 dark:text-stone-100 mb-1.5">{myNext.match.opponent}</div>
+                {myNext.match.address && (
+                  <a
+                    href={mapsLink(myNext.match.address)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-start gap-1.5 text-xs text-emerald-700 dark:text-emerald-400 hover:underline"
+                  >
+                    <Navigation size={12} className="flex-shrink-0 mt-0.5" />
+                    <span>{myNext.match.address}</span>
+                  </a>
+                )}
               </div>
             );
           })()}
@@ -2809,11 +2890,18 @@ export default function Einsatzplan() {
           const dEntry = data[dashboardMatch.id] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
           const dAvail = dEntry.availability || {};
           const dStats = computeMatchStatus(team.players, dAvail, team.requiredPlayers, dEntry.ersatzSpieler);
+          const urgency = countdownUrgency(dashboardMatch, dStats.confirmedCount, team.requiredPlayers);
+          const borderClass =
+            urgency === "red"
+              ? "border-red-500 dark:border-red-600"
+              : urgency === "amber"
+              ? "border-amber-500 dark:border-amber-600"
+              : "border-emerald-500 dark:border-emerald-600";
           return (
-            <div className="rounded-xl bg-white dark:bg-stone-900 border-2 border-emerald-500 dark:border-emerald-600 p-4 shadow-sm">
+            <div className={`rounded-xl bg-white dark:bg-stone-900 border-2 ${borderClass} p-4 shadow-sm`}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Nächstes Spiel</span>
-                <span className="text-xs font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-full">{formatCountdown(dashboardMatch)}</span>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${COUNTDOWN_BADGE_CLASSES[urgency]}`}>{formatCountdown(dashboardMatch)}</span>
               </div>
               <div className="text-lg font-black leading-tight text-stone-800 dark:text-stone-100">
                 {dashboardMatch.weekday}, {dashboardMatch.date}
