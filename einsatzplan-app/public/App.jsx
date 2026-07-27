@@ -2395,22 +2395,23 @@ export default function Einsatzplan() {
               <div>
                 <h3 className="font-bold text-emerald-700 dark:text-emerald-400 mb-1.5">Weitere Funktionen</h3>
                 <ul className="space-y-1.5 text-stone-600 dark:text-stone-300">
-                  <li><strong>Dashboard „Nächstes Spiel":</strong> Countdown + Zusagenstand oben in der Mannschaftsansicht</li>
+                  <li><strong>Dashboard „Nächstes Spiel":</strong> Countdown (färbt sich rot/gelb bei Zeitdruck) + Zusagenstand oben in der Mannschaftsansicht</li>
                   <li><strong>Notizen:</strong> freies Feld unter jedem Spiel, für alle sichtbar</li>
                   <li><strong>Ersatzspieler:</strong> „+ Ersatzspieler hinzufügen" – zählt automatisch als Zusage mit</li>
                   <li><strong>Fotos:</strong> bis zu 3 pro Spiel hochladen</li>
                   <li><strong>Kalender:</strong> „Kalender"-Button pro Spiel oder „.ics" für die ganze Runde</li>
                   <li><strong>WhatsApp:</strong> grüner Button teilt Termin + Zusagen fertig formatiert</li>
+                  <li><strong>„C"-Abzeichen:</strong> markiert den Mannschaftsführer bei den Spieler-Kürzeln</li>
                 </ul>
               </div>
 
               <div>
                 <h3 className="font-bold text-emerald-700 dark:text-emerald-400 mb-1.5">Die vier Reiter</h3>
                 <ul className="space-y-1 text-stone-600 dark:text-stone-300">
-                  <li><strong>Meine Spiele:</strong> nur eigene Zusagen + Ersatzeinsätze</li>
+                  <li><strong>Meine Spiele:</strong> nur eigene Zusagen + Ersatzeinsätze, oben „Mein nächstes Spiel" mit Anschrift</li>
                   <li><strong>[Mannschaft]:</strong> alle Spiele der gewählten Mannschaft</li>
                   <li><strong>Gesamt:</strong> Tabellenübersicht mit Status auf einen Blick</li>
-                  <li><strong>Verein:</strong> alle 8 Mannschaften, Dashboard, Terminkonflikte, Saison-Rückblick</li>
+                  <li><strong>Verein:</strong> alle 8 Mannschaften, Dashboard, Suche, Terminkonflikte, News/Termine aus der Vereinsverwaltung, Saison-Rückblick</li>
                 </ul>
               </div>
 
@@ -2421,16 +2422,43 @@ export default function Einsatzplan() {
                   <li>🎉 Konfetti, wenn eure Zusage die Mannschaft komplett macht</li>
                   <li>Sonne/Mond oben rechts: Hell-/Dunkelmodus</li>
                   <li>„Tabelle"-Link neben der Liga führt zu myTischtennis.de</li>
+                  <li>Suchfeld im „Verein"-Tab: nach Mannschaft, Gegner oder Ort filtern</li>
                 </ul>
               </div>
 
               <div className="border-t border-stone-200 dark:border-stone-800 pt-4">
-                <h3 className="font-bold text-emerald-700 dark:text-emerald-400 mb-1.5">Für Mannschaftsführer</h3>
-                <ul className="space-y-1.5 text-stone-600 dark:text-stone-300">
-                  <li><strong>Anmelden:</strong> Schloss-Symbol oben rechts (offenes Schloss = eingeloggt)</li>
-                  <li><strong>Spieltag bearbeiten/löschen:</strong> Stift-Symbol bei jedem Spiel</li>
-                  <li><strong>Admin-Bereich</strong> (ganz unten): Rückmeldungen zurücksetzen, Kader verwalten, Geburtstage eintragen, neue Mannschaft anlegen, Änderungsverlauf einsehen</li>
+                <h3 className="font-bold text-emerald-700 dark:text-emerald-400 mb-1.5">Anmelden & Rollen</h3>
+                <p className="text-stone-600 dark:text-stone-300 mb-1.5">
+                  Anmelden über den grünen <strong>„🔓 Admin"</strong>-Button oben rechts. Was du danach siehst, hängt von
+                  deiner zugewiesenen Rolle ab:
+                </p>
+                <ul className="space-y-1 text-stone-600 dark:text-stone-300">
+                  <li><strong>Administrator/Vorstand:</strong> voller Zugriff überall, inkl. Rollen &amp; Rechte vergeben</li>
+                  <li><strong>Mannschaftsführer/Trainer:</strong> Admin-Rechte, ggf. nur für die eigene(n) Mannschaft(en)</li>
+                  <li><strong>Sportwart/Kassenwart:</strong> je nach Einstellung in der Rechtematrix</li>
+                  <li>Passwort ändern/vergessen: über den Login-Bildschirm bzw. im Admin-Bereich oben</li>
                 </ul>
+              </div>
+
+              <div className="border-t border-stone-200 dark:border-stone-800 pt-4">
+                <h3 className="font-bold text-emerald-700 dark:text-emerald-400 mb-1.5">Für Mannschaftsführer (Admin-Bereich)</h3>
+                <ul className="space-y-1.5 text-stone-600 dark:text-stone-300">
+                  <li><strong>Spieltag bearbeiten/löschen:</strong> Stift-Symbol bei jedem Spiel</li>
+                  <li><strong>Kader verwalten:</strong> Spieler hinzufügen/entfernen, Mannschaftsführer („C") festlegen</li>
+                  <li><strong>Gesamtübersicht als PDF exportieren:</strong> druckfreundliche Liste aller Zusagen</li>
+                  <li><strong>Rechtematrix</strong> (nur Administrator): legt fest, was jede Rolle darf</li>
+                  <li><strong>Gefahrenzone:</strong> alle Rückmeldungen zurücksetzen (mit Sicherheitsabfrage)</li>
+                </ul>
+              </div>
+
+              <div className="border-t border-stone-200 dark:border-stone-800 pt-4">
+                <h3 className="font-bold text-emerald-700 dark:text-emerald-400 mb-1.5">Vereinsverwaltung</h3>
+                <p className="text-stone-600 dark:text-stone-300">
+                  Eine separate App für Mitglieder, Beiträge, Vorstand, Aufgaben, Inventar, Ehrenamt, Sponsoren, Dokumente
+                  und mehr. Login und Rollen sind mit dem Einsatzplan geteilt – im Admin-Bereich führt ein grüner Button
+                  direkt dorthin (falls deine Rolle das erlaubt). News und Termine aus der Vereinsverwaltung erscheinen
+                  automatisch im „Verein"-Tab.
+                </p>
               </div>
 
               <div className="border-t border-stone-200 dark:border-stone-800 pt-4">
@@ -2744,7 +2772,7 @@ export default function Einsatzplan() {
             <div>
               <button
                 onClick={() => setShowVvEvents((s) => !s)}
-                className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-gradient-to-r from-green-700 to-green-600 text-white"
+                className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-gradient-to-r from-emerald-700 to-emerald-600 text-white"
               >
                 <span className="flex items-center gap-2">
                   <CalendarClock size={16} /> Vereinstermine ({upcomingVvEvents.length})
@@ -2752,7 +2780,7 @@ export default function Einsatzplan() {
                 <ChevronDown size={16} className={showVvEvents ? "rotate-180" : ""} />
               </button>
               {showVvEvents && (
-                <div className="mt-2 rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/30 p-4">
+                <div className="mt-2 rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 p-4">
                   <div className="flex flex-col gap-1.5">
                     {upcomingVvEvents.map((e) => (
                       <div key={e.id} className="text-sm text-stone-700 dark:text-stone-200">
