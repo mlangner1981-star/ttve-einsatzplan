@@ -1217,6 +1217,8 @@ export default function Einsatzplan() {
   }, [clubData]);
 
   const [showSeasonReview, setShowSeasonReview] = useState(false);
+  const [showVvEvents, setShowVvEvents] = useState(false);
+  const [showVvNews, setShowVvNews] = useState(false);
   const [clubSearch, setClubSearch] = useState("");
 
   const filteredClubByDate = useMemo(() => {
@@ -2739,36 +2741,56 @@ export default function Einsatzplan() {
           )}
 
           {upcomingVvEvents.length > 0 && (
-            <div className="rounded-lg border border-sky-200 dark:border-sky-900 bg-sky-50 dark:bg-sky-950/30 p-4">
-              <div className="text-xs font-bold text-sky-800 dark:text-sky-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <CalendarClock size={13} /> Vereinstermine (aus der Vereinsverwaltung)
-              </div>
-              <div className="flex flex-col gap-1.5">
-                {upcomingVvEvents.map((e) => (
-                  <div key={e.id} className="text-sm text-stone-700 dark:text-stone-200">
-                    <span className="font-bold">{e.date}</span>
-                    {e.time && ` · ${e.time} Uhr`} – {e.title}
-                    {e.location && <span className="text-stone-400 dark:text-stone-500"> ({e.location})</span>}
+            <div>
+              <button
+                onClick={() => setShowVvEvents((s) => !s)}
+                className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-gradient-to-r from-sky-700 to-sky-600 text-white"
+              >
+                <span className="flex items-center gap-2">
+                  <CalendarClock size={16} /> Vereinstermine ({upcomingVvEvents.length})
+                </span>
+                <ChevronDown size={16} className={showVvEvents ? "rotate-180" : ""} />
+              </button>
+              {showVvEvents && (
+                <div className="mt-2 rounded-lg border border-sky-200 dark:border-sky-900 bg-sky-50 dark:bg-sky-950/30 p-4">
+                  <div className="flex flex-col gap-1.5">
+                    {upcomingVvEvents.map((e) => (
+                      <div key={e.id} className="text-sm text-stone-700 dark:text-stone-200">
+                        <span className="font-bold">{e.date}</span>
+                        {e.time && ` · ${e.time} Uhr`} – {e.title}
+                        {e.location && <span className="text-stone-400 dark:text-stone-500"> ({e.location})</span>}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
           )}
 
           {recentVvNews.length > 0 && (
-            <div className="rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 p-4">
-              <div className="text-xs font-bold text-emerald-800 dark:text-emerald-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <Newspaper size={13} /> News (aus der Vereinsverwaltung)
-              </div>
-              <div className="flex flex-col gap-2.5">
-                {recentVvNews.map((n) => (
-                  <div key={n.id}>
-                    <div className="text-sm font-bold text-stone-800 dark:text-stone-100">{n.title}</div>
-                    <div className="text-[10px] text-stone-400 dark:text-stone-500">{n.date}</div>
-                    {n.text && <p className="text-xs text-stone-600 dark:text-stone-300 mt-0.5 line-clamp-2">{n.text}</p>}
+            <div>
+              <button
+                onClick={() => setShowVvNews((s) => !s)}
+                className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-gradient-to-r from-emerald-700 to-emerald-600 text-white"
+              >
+                <span className="flex items-center gap-2">
+                  <Newspaper size={16} /> News ({recentVvNews.length})
+                </span>
+                <ChevronDown size={16} className={showVvNews ? "rotate-180" : ""} />
+              </button>
+              {showVvNews && (
+                <div className="mt-2 rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 p-4">
+                  <div className="flex flex-col gap-2.5">
+                    {recentVvNews.map((n) => (
+                      <div key={n.id}>
+                        <div className="text-sm font-bold text-stone-800 dark:text-stone-100">{n.title}</div>
+                        <div className="text-[10px] text-stone-400 dark:text-stone-500">{n.date}</div>
+                        {n.text && <p className="text-xs text-stone-600 dark:text-stone-300 mt-0.5 line-clamp-2">{n.text}</p>}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
           )}
 
