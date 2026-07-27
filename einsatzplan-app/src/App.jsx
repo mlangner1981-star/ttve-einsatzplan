@@ -334,9 +334,7 @@ const DEFAULT_PERMISSION_MATRIX = {
 };
 const PERMISSION_MATRIX_KEY = "rechtematrix";
 const ROLE_TEAM_SCOPE_KEY = "rollenteams"; // email -> [teamId, teamId, ...] (nur relevant bei scopeToOwnTeam-Rollen)
-const NEWS_KEY = "ttv-suechteln-vorst-news";
 const BOARD_KEY = "ttv-suechteln-vorst-vorstand";
-const EVENTS_KEY = "ttv-suechteln-vorst-termine";
 const MEMBERS_KEY = "ttv-suechteln-vorst-mitglieder";
 
 const STATUS_LABELS = {
@@ -1403,6 +1401,7 @@ export default function Einsatzplan() {
   // Vereinstermine aus der separaten Vereinsverwaltungs-App (falls im
   // selben Firebase-Projekt eingerichtet) - rein lesend, keine Bearbeitung hier.
   const [vvEvents, setVvEvents] = useState(null); // null = noch nicht geladen/nicht verfügbar
+  const [vvNews, setVvNews] = useState(null); // null = noch nicht geladen/nicht verfügbar
   useEffect(() => {
     if (view !== "club") return;
     let cancelled = false;
@@ -1418,6 +1417,18 @@ export default function Einsatzplan() {
         setVvEvents([]);
       }
     });
+    getFromVereinsverwaltung("news").then((res) => {
+      if (cancelled) return;
+      if (res && res.value) {
+        try {
+          setVvNews(JSON.parse(res.value));
+        } catch {
+          setVvNews([]);
+        }
+      } else {
+        setVvNews([]);
+      }
+    });
     return () => {
       cancelled = true;
     };
@@ -1429,15 +1440,13 @@ export default function Einsatzplan() {
     return vvEvents
       .filter((e) => e.date && dmyToIso(e.date) >= dmyToIso(`${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()}`))
       .sort((a, b) => dmyToIso(a.date).localeCompare(dmyToIso(b.date)))
-      .slice(0, 5);
+      .slice(0, 15);
   }, [vvEvents]);
-  const [showNews, setShowNews] = useState(true);
+
+  const recentVvNews = useMemo(() => (vvNews ? vvNews.slice(0, 10) : []), [vvNews]);
   const [showBoard, setShowBoard] = useState(false);
-  const [showEvents, setShowEvents] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
-  const [newsForm, setNewsForm] = useState({ title: "", text: "" });
   const [boardForm, setBoardForm] = useState({ name: "", role: "", phone: "", email: "" });
-  const [eventForm, setEventForm] = useState({ title: "", date: "", time: "", location: "" });
   const [memberForm, setMemberForm] = useState({ name: "", phone: "", email: "", note: "" });
 
   // Erkennt, ob ein Spieler am selben Datum bei mehreren Mannschaften mit
@@ -1738,24 +1747,15 @@ export default function Einsatzplan() {
       .map(([name]) => name);
   }, [birthdays]);
 
-  // --- Generische Verwaltung für einfache Listen (News, Vorstand, Termine, Mitglieder) ---
-  const [news, setNews] = useState([]);
+  // --- Generische Verwaltung für einfache Listen (Vorstand, Mitglieder - Reste, News/Termine kommen jetzt nur noch aus der Vereinsverwaltung) ---
   const [board, setBoard] = useState([]);
-  const [clubEvents, setClubEvents] = useState([]);
   const [members, setMembers] = useState([]);
   const [listsLoaded, setListsLoaded] = useState(false);
 
   const loadLists = useCallback(async () => {
     try {
-      const [n, b, e, m] = await Promise.all([
-        getShared(NEWS_KEY),
-        getShared(BOARD_KEY),
-        getShared(EVENTS_KEY),
-        getShared(MEMBERS_KEY),
-      ]);
-      setNews(n && n.value ? JSON.parse(n.value) : []);
+      const [b, m] = await Promise.all([getShared(BOARD_KEY), getShared(MEMBERS_KEY)]);
       setBoard(b && b.value ? JSON.parse(b.value) : []);
-      setClubEvents(e && e.value ? JSON.parse(e.value) : []);
       setMembers(m && m.value ? JSON.parse(m.value) : []);
     } catch (err) {
       // still ok: Bereiche bleiben dann einfach leer
@@ -1777,14 +1777,6 @@ export default function Einsatzplan() {
     }
   }
 
-  const addNews = (title, text) => {
-    if (!title.trim()) return;
-    const item = { id: Date.now(), title: title.trim(), text: text.trim(), date: todayDMY(), author: authUser?.email || "Vorstand" };
-    saveList(NEWS_KEY, setNews, [item, ...news]);
-    logChange(authUser?.email, "Verein", "-", `News veröffentlicht: ${title.trim()}`);
-  };
-  const removeNews = (id) => saveList(NEWS_KEY, setNews, news.filter((n) => n.id !== id));
-
   const addBoardMember = (name, role, phone, email) => {
     if (!name.trim()) return;
     const item = { id: Date.now(), name: name.trim(), role: role.trim(), phone: phone.trim(), email: email.trim() };
@@ -1792,15 +1784,6 @@ export default function Einsatzplan() {
     logChange(authUser?.email, "Verein", "-", `Ansprechpartner hinzugefügt: ${name.trim()}`);
   };
   const removeBoardMember = (id) => saveList(BOARD_KEY, setBoard, board.filter((b) => b.id !== id));
-
-  const addClubEvent = (title, date, time, location) => {
-    if (!title.trim() || !date.trim()) return;
-    const item = { id: Date.now(), title: title.trim(), date: date.trim(), time: time.trim(), location: location.trim() };
-    const next = [...clubEvents, item].sort((a, b) => dmyToIso(a.date).localeCompare(dmyToIso(b.date)));
-    saveList(EVENTS_KEY, setClubEvents, next);
-    logChange(authUser?.email, "Verein", "-", `Termin hinzugefügt: ${title.trim()}`);
-  };
-  const removeClubEvent = (id) => saveList(EVENTS_KEY, setClubEvents, clubEvents.filter((e) => e.id !== id));
 
   const addMember = (name, phone, email, note) => {
     if (!name.trim()) return;
@@ -2772,135 +2755,22 @@ export default function Einsatzplan() {
             </div>
           )}
 
-          {/* News / Termine - immer nur eines gleichzeitig geöffnet */}
-          <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 overflow-hidden">
-            <div className="grid grid-cols-2">
-              <button
-                onClick={() => {
-                  setShowNews((s) => !s);
-                  setShowEvents(false);
-                }}
-                className={`flex items-center gap-2.5 px-4 py-3.5 transition-colors ${
-                  showNews ? "bg-emerald-600 text-white" : "text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800"
-                }`}
-              >
-                <Newspaper size={18} className={showNews ? "text-white" : "text-emerald-600"} />
-                <div className="text-left">
-                  <div className="text-sm font-bold leading-tight">News</div>
-                  <div className={`text-[11px] leading-tight ${showNews ? "text-emerald-100" : "text-stone-400 dark:text-stone-500"}`}>
-                    {news.length > 0 ? `${news.length} Meldung${news.length > 1 ? "en" : ""}` : "Noch keine"}
+          {recentVvNews.length > 0 && (
+            <div className="rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 p-4">
+              <div className="text-xs font-bold text-emerald-800 dark:text-emerald-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <Newspaper size={13} /> News (aus der Vereinsverwaltung)
+              </div>
+              <div className="flex flex-col gap-2.5">
+                {recentVvNews.map((n) => (
+                  <div key={n.id}>
+                    <div className="text-sm font-bold text-stone-800 dark:text-stone-100">{n.title}</div>
+                    <div className="text-[10px] text-stone-400 dark:text-stone-500">{n.date}</div>
+                    {n.text && <p className="text-xs text-stone-600 dark:text-stone-300 mt-0.5 line-clamp-2">{n.text}</p>}
                   </div>
-                </div>
-              </button>
-              <button
-                onClick={() => {
-                  setShowEvents((s) => !s);
-                  setShowNews(false);
-                }}
-                className={`flex items-center gap-2.5 px-4 py-3.5 border-l border-stone-200 dark:border-stone-800 transition-colors ${
-                  showEvents ? "bg-amber-500 text-white" : "text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800"
-                }`}
-              >
-                <CalendarClock size={18} className={showEvents ? "text-white" : "text-amber-600"} />
-                <div className="text-left">
-                  <div className="text-sm font-bold leading-tight">Termine</div>
-                  <div className={`text-[11px] leading-tight ${showEvents ? "text-amber-100" : "text-stone-400 dark:text-stone-500"}`}>
-                    {clubEvents.length > 0 ? `${clubEvents.length} anstehend` : "Noch keine"}
-                  </div>
-                </div>
-              </button>
+                ))}
+              </div>
             </div>
-          </div>
-
-          {/* News */}
-          <div>
-            {showNews && (
-              <div className="mt-2 flex flex-col gap-2">
-                {news.length === 0 && <p className="text-xs text-stone-400 px-1">Noch keine News.</p>}
-                {news.map((n) => (
-                  <div key={n.id} className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="font-bold text-sm text-stone-800 dark:text-stone-100">{n.title}</div>
-                      {canManageTeam && (
-                        <button onClick={() => removeNews(n.id)} className="text-stone-300 hover:text-red-600">
-                          <X size={14} />
-                        </button>
-                      )}
-                    </div>
-                    <div className="text-[10px] text-stone-400 mb-1">{n.date}</div>
-                    {n.text && <p className="text-xs text-stone-600 dark:text-stone-300 whitespace-pre-line">{n.text}</p>}
-                  </div>
-                ))}
-                {canManageTeam && (
-                  <div className="rounded-lg border border-dashed border-stone-300 dark:border-stone-700 p-3 flex flex-col gap-2">
-                    <input
-                      value={newsForm.title}
-                      onChange={(e) => setNewsForm({ ...newsForm, title: e.target.value })}
-                      placeholder="Titel"
-                      className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm"
-                    />
-                    <textarea
-                      value={newsForm.text}
-                      onChange={(e) => setNewsForm({ ...newsForm, text: e.target.value })}
-                      placeholder="Text (optional)"
-                      rows={2}
-                      className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm"
-                    />
-                    <button
-                      onClick={() => {
-                        addNews(newsForm.title, newsForm.text);
-                        setNewsForm({ title: "", text: "" });
-                      }}
-                      className="text-sm font-bold py-2 rounded-lg bg-emerald-700 text-white"
-                    >
-                      News veröffentlichen
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Vereinstermine */}
-          <div>
-            {showEvents && (
-              <div className="mt-2 flex flex-col gap-2">
-                {clubEvents.length === 0 && <p className="text-xs text-stone-400 px-1">Keine Vereinstermine eingetragen.</p>}
-                {clubEvents.map((ev) => (
-                  <div key={ev.id} className="rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-3 flex items-center justify-between">
-                    <div>
-                      <div className="font-bold text-sm text-stone-800 dark:text-stone-100">{ev.title}</div>
-                      <div className="text-xs text-stone-500 dark:text-stone-400">
-                        {ev.date}{ev.time && ` · ${ev.time} Uhr`}{ev.location && ` · ${ev.location}`}
-                      </div>
-                    </div>
-                    {canManageTeam && (
-                      <button onClick={() => removeClubEvent(ev.id)} className="text-stone-300 hover:text-red-600">
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                {canManageTeam && (
-                  <div className="rounded-lg border border-dashed border-stone-300 dark:border-stone-700 p-3 flex flex-col gap-2">
-                    <input value={eventForm.title} onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })} placeholder="Titel (z. B. Jahreshauptversammlung)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
-                    <input value={eventForm.date} onChange={(e) => setEventForm({ ...eventForm, date: e.target.value })} placeholder="Datum (TT.MM.JJJJ)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
-                    <input value={eventForm.time} onChange={(e) => setEventForm({ ...eventForm, time: e.target.value })} placeholder="Uhrzeit (optional)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
-                    <input value={eventForm.location} onChange={(e) => setEventForm({ ...eventForm, location: e.target.value })} placeholder="Ort (optional)" className="rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-3 py-2 text-sm" />
-                    <button
-                      onClick={() => {
-                        addClubEvent(eventForm.title, eventForm.date, eventForm.time, eventForm.location);
-                        setEventForm({ title: "", date: "", time: "", location: "" });
-                      }}
-                      className="text-sm font-bold py-2 rounded-lg bg-emerald-700 text-white"
-                    >
-                      Termin hinzufügen
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          )}
 
           {!clubLoading && !clubError && scheduleConflicts.length > 0 && (
             <div className="rounded-lg border-2 border-red-400 dark:border-red-700 bg-red-50 dark:bg-red-950/50 p-4">
