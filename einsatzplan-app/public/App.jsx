@@ -1321,6 +1321,10 @@ export default function Einsatzplan() {
   // seinen Rollen) mindestens eine mit "roleAdmin: true" hat, kommt hier rein.
   const isPureAdmin =
     !!authUser && (noRoleDataAvailable || myEinsatzplanRoles.some((r) => effectiveMatrix[r]?.roleAdmin));
+  // Nur wer laut Rechtematrix "Vereinsverwaltung ansehen" darf (Standard:
+  // Administrator/Vorstand/Kassenwart/Sportwart), sieht den Link dorthin.
+  const canViewVereinsverwaltung =
+    !!authUser && (noRoleDataAvailable || myEinsatzplanRoles.some((r) => effectiveMatrix[r]?.vvView));
   const ROLE_OPTIONS = ["Administrator", "Vorstand", "Sportwart", "Kassenwart", "Trainer", "Mannschaftsführer", "Mitglied"];
   const [roleEmailInput, setRoleEmailInput] = useState("");
   const [roleSelectInput, setRoleSelectInput] = useState(["Mannschaftsführer"]); // jetzt Array = Mehrfachauswahl
@@ -1399,6 +1403,7 @@ export default function Einsatzplan() {
   // Vereinstermine aus der separaten Vereinsverwaltungs-App (falls im
   // selben Firebase-Projekt eingerichtet) - rein lesend, keine Bearbeitung hier.
   const [vvEvents, setVvEvents] = useState(null); // null = noch nicht geladen/nicht verfügbar
+  const [vvNews, setVvNews] = useState(null); // null = noch nicht geladen/nicht verfügbar
   useEffect(() => {
     if (view !== "club") return;
     let cancelled = false;
@@ -1414,6 +1419,18 @@ export default function Einsatzplan() {
         setVvEvents([]);
       }
     });
+    getFromVereinsverwaltung("news").then((res) => {
+      if (cancelled) return;
+      if (res && res.value) {
+        try {
+          setVvNews(JSON.parse(res.value));
+        } catch {
+          setVvNews([]);
+        }
+      } else {
+        setVvNews([]);
+      }
+    });
     return () => {
       cancelled = true;
     };
@@ -1427,6 +1444,8 @@ export default function Einsatzplan() {
       .sort((a, b) => dmyToIso(a.date).localeCompare(dmyToIso(b.date)))
       .slice(0, 5);
   }, [vvEvents]);
+
+  const recentVvNews = useMemo(() => (vvNews ? vvNews.slice(0, 3) : []), [vvNews]);
   const [showNews, setShowNews] = useState(true);
   const [showBoard, setShowBoard] = useState(false);
   const [showEvents, setShowEvents] = useState(false);
@@ -2768,6 +2787,23 @@ export default function Einsatzplan() {
             </div>
           )}
 
+          {recentVvNews.length > 0 && (
+            <div className="rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 p-4">
+              <div className="text-xs font-bold text-emerald-800 dark:text-emerald-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <Newspaper size={13} /> News (aus der Vereinsverwaltung)
+              </div>
+              <div className="flex flex-col gap-2.5">
+                {recentVvNews.map((n) => (
+                  <div key={n.id}>
+                    <div className="text-sm font-bold text-stone-800 dark:text-stone-100">{n.title}</div>
+                    <div className="text-[10px] text-stone-400 dark:text-stone-500">{n.date}</div>
+                    {n.text && <p className="text-xs text-stone-600 dark:text-stone-300 mt-0.5 line-clamp-2">{n.text}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* News / Termine - immer nur eines gleichzeitig geöffnet */}
           <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 overflow-hidden">
             <div className="grid grid-cols-2">
@@ -3797,6 +3833,26 @@ export default function Einsatzplan() {
               <strong className="text-white">{team.label}</strong>. Andere Mannschaft? Oben im Dropdown wechseln.
             </div>
           </div>
+
+          {canViewVereinsverwaltung && (
+            <a
+              href="https://ttve-vereinsverwaltung.vercel.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-violet-700 text-white p-4 mb-3"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center flex-shrink-0">
+                  <Building2 size={18} />
+                </div>
+                <div>
+                  <div className="text-sm font-bold">Zur Vereinsverwaltung</div>
+                  <div className="text-[11px] text-violet-200">Mitglieder, Beiträge, Vorstand, Aufgaben u.v.m.</div>
+                </div>
+              </div>
+              <ExternalLink size={16} className="flex-shrink-0" />
+            </a>
+          )}
 
           {/* Reiner Administrator-Bereich: Rollen zuweisen/entfernen */}
           {isPureAdmin && (
