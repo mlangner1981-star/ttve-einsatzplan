@@ -2751,6 +2751,24 @@ export default function Einsatzplan() {
             </div>
           )}
 
+          <a
+            href="https://ttve-vereinsverwaltung.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-violet-700 text-white p-4"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center flex-shrink-0">
+                <Building2 size={18} />
+              </div>
+              <div>
+                <div className="text-sm font-bold">Zur Vereinsverwaltung</div>
+                <div className="text-[11px] text-violet-200">Mitglieder, Beiträge, Vorstand, Aufgaben u.v.m.</div>
+              </div>
+            </div>
+            <ExternalLink size={16} className="flex-shrink-0" />
+          </a>
+
           {upcomingVvEvents.length > 0 && (
             <div className="rounded-lg border border-sky-200 dark:border-sky-900 bg-sky-50 dark:bg-sky-950/30 p-4">
               <div className="text-xs font-bold text-sky-800 dark:text-sky-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
