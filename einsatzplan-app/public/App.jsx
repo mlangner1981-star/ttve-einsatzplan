@@ -2744,7 +2744,7 @@ export default function Einsatzplan() {
             <div>
               <button
                 onClick={() => setShowVvEvents((s) => !s)}
-                className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-gradient-to-r from-sky-700 to-sky-600 text-white"
+                className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-gradient-to-r from-green-700 to-green-600 text-white"
               >
                 <span className="flex items-center gap-2">
                   <CalendarClock size={16} /> Vereinstermine ({upcomingVvEvents.length})
@@ -2752,7 +2752,7 @@ export default function Einsatzplan() {
                 <ChevronDown size={16} className={showVvEvents ? "rotate-180" : ""} />
               </button>
               {showVvEvents && (
-                <div className="mt-2 rounded-lg border border-sky-200 dark:border-sky-900 bg-sky-50 dark:bg-sky-950/30 p-4">
+                <div className="mt-2 rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/30 p-4">
                   <div className="flex flex-col gap-1.5">
                     {upcomingVvEvents.map((e) => (
                       <div key={e.id} className="text-sm text-stone-700 dark:text-stone-200">
@@ -3699,7 +3699,7 @@ export default function Einsatzplan() {
               href="https://ttve-vereinsverwaltung.vercel.app/"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-between gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-violet-700 text-white p-4 mb-3"
+              className="flex items-center justify-between gap-2 rounded-lg bg-gradient-to-r from-emerald-700 to-emerald-800 text-white p-4 mb-3"
             >
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center flex-shrink-0">
