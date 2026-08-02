@@ -1,4 +1,4 @@
-import { doc, getDocFromServer, setDoc, deleteDoc, collection, getDocs } from "firebase/firestore";
+import { doc, getDocFromServer, setDoc, deleteDoc, collection, getDocsFromServer } from "firebase/firestore";
 import { db } from "./firebase.js";
 
 const COLLECTION = "einsatzplan_shared_storage";
@@ -77,7 +77,7 @@ const ROLES_COLLECTION = "vv_roles";
 export async function getAllVvRoles() {
   if (!db) return {};
   try {
-    const snap = await withTimeout(getDocs(collection(db, ROLES_COLLECTION)), "Rollen laden");
+    const snap = await withTimeout(getDocsFromServer(collection(db, ROLES_COLLECTION)), "Rollen laden");
     const map = {};
     snap.forEach((d) => {
       map[d.id] = d.data().roles || [];
