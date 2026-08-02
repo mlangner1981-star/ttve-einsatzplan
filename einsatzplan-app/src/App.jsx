@@ -1219,6 +1219,7 @@ export default function Einsatzplan() {
 
   const [showSeasonReview, setShowSeasonReview] = useState(false);
   const [showVvEvents, setShowVvEvents] = useState(false);
+  const [showRoster, setShowRoster] = useState(false);
   const [showVvNews, setShowVvNews] = useState(false);
   const [clubSearch, setClubSearch] = useState("");
 
@@ -3449,6 +3450,48 @@ export default function Einsatzplan() {
             </div>
           );
         })()}
+
+        <div>
+          <button
+            onClick={() => setShowRoster((s) => !s)}
+            className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-gradient-to-r from-emerald-700 to-emerald-600 text-white"
+          >
+            <span className="flex items-center gap-2">
+              <Users size={16} /> Kader ({team.players.length})
+            </span>
+            <ChevronDown size={16} className={showRoster ? "rotate-180" : ""} />
+          </button>
+          {showRoster && (
+            <div className="mt-2 rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 p-4">
+              <div className="flex flex-col gap-1.5">
+                {[...team.players]
+                  .sort((a, b) => (ttrValues[b]?.ttr || 0) - (ttrValues[a]?.ttr || 0))
+                  .map((p) => {
+                    const isCaptain = captains[team.id] === p;
+                    const ttr = ttrValues[p];
+                    return (
+                      <div key={p} className="flex items-center justify-between text-sm py-1 border-b border-emerald-100 dark:border-emerald-900 last:border-0">
+                        <span className="flex items-center gap-1.5 text-stone-700 dark:text-stone-200">
+                          {isCaptain && (
+                            <span className="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0">C</span>
+                          )}
+                          {p}
+                        </span>
+                        {ttr && (ttr.ttr || ttr.qttr) ? (
+                          <span className="text-xs text-stone-500 dark:text-stone-400 font-semibold">
+                            {ttr.ttr ?? "–"}{ttr.qttr ? ` / ${ttr.qttr}` : ""}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-stone-300 dark:text-stone-600">–</span>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+              <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-2">TTR / QTTR, sortiert nach TTR (falls hinterlegt)</p>
+            </div>
+          )}
+        </div>
 
         {matches.length === 0 && (
           <div className="flex flex-col items-center text-center text-sm text-stone-400 dark:text-stone-500 py-10">
