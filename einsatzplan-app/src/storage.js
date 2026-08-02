@@ -1,4 +1,4 @@
-import { doc, getDocFromServer, setDoc } from "firebase/firestore";
+import { doc, getDocFromServer, setDoc, deleteDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "./firebase.js";
 
 const COLLECTION = "einsatzplan_shared_storage";
@@ -67,4 +67,35 @@ export async function setToVereinsverwaltung(key, value) {
   const ref = doc(db, VEREINSVERWALTUNG_COLLECTION, key);
   await withTimeout(setDoc(ref, { value, updatedAt: Date.now() }), "Speichern (Vereinsverwaltung)");
   return { key, value };
+}
+
+// --- Rollen (echte Dokumente, ein Dokument pro E-Mail) - dieselbe Sammlung,
+// die auch die Vereinsverwaltung nutzt, damit Rollen zuverlässig geteilt sind
+// UND die Firestore-Sicherheitsregeln sie direkt prüfen können.
+const ROLES_COLLECTION = "vv_roles";
+
+export async function getAllVvRoles() {
+  if (!db) return {};
+  try {
+    const snap = await withTimeout(getDocs(collection(db, ROLES_COLLECTION)), "Rollen laden");
+    const map = {};
+    snap.forEach((d) => {
+      map[d.id] = d.data().roles || [];
+    });
+    return map;
+  } catch (e) {
+    return {};
+  }
+}
+
+export async function setVvUserRoles(email, roles) {
+  if (!db) throw new Error("Firebase ist nicht konfiguriert.");
+  const ref = doc(db, ROLES_COLLECTION, email);
+  await withTimeout(setDoc(ref, { roles, updatedAt: Date.now() }), "Rolle speichern");
+}
+
+export async function deleteVvUserRoles(email) {
+  if (!db) throw new Error("Firebase ist nicht konfiguriert.");
+  const ref = doc(db, ROLES_COLLECTION, email);
+  await withTimeout(deleteDoc(ref), "Rolle löschen");
 }
