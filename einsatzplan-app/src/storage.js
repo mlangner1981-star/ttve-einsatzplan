@@ -99,3 +99,26 @@ export async function deleteVvUserRoles(email) {
   const ref = doc(db, ROLES_COLLECTION, email);
   await withTimeout(deleteDoc(ref), "Rolle löschen");
 }
+
+// --- Öffentliche Sichtbarkeit einzelner Vereinsverwaltungs-Bereiche -----
+// Echtes Dokument mit echten Feldern (kein Text-Blob), damit die
+// Firestore-Regeln direkt prüfen können, ob ein Bereich freigegeben ist.
+const PUBLIC_VISIBILITY_DOC = "oeffentlich";
+
+export async function getPublicVisibility() {
+  if (!db) return {};
+  try {
+    const ref = doc(db, VEREINSVERWALTUNG_COLLECTION, PUBLIC_VISIBILITY_DOC);
+    const snap = await withTimeout(getDocFromServer(ref), "Sichtbarkeit laden");
+    if (!snap.exists()) return {};
+    return snap.data() || {};
+  } catch (e) {
+    return {};
+  }
+}
+
+export async function setPublicVisibility(fields) {
+  if (!db) throw new Error("Firebase ist nicht konfiguriert.");
+  const ref = doc(db, VEREINSVERWALTUNG_COLLECTION, PUBLIC_VISIBILITY_DOC);
+  await withTimeout(setDoc(ref, fields, { merge: true }), "Sichtbarkeit speichern");
+}
