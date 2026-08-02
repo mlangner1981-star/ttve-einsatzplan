@@ -1250,9 +1250,14 @@ export default function Einsatzplan() {
       setSharedRoles(null);
       return;
     }
-    getAllVvRoles().then((map) => {
-      setSharedRoles(map || {});
-    });
+    getAllVvRoles()
+      .then((map) => {
+        setSharedRoles(map || {});
+      })
+      .catch((e) => {
+        showToast(`Rollen-Laden fehlgeschlagen: ${e?.code || e?.message || "unbekannter Fehler"}`);
+        setSharedRoles({});
+      });
     getFromVereinsverwaltung(PERMISSION_MATRIX_KEY).then((res) => {
       if (res && res.value) {
         try {
