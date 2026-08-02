@@ -1,7 +1,7 @@
-import { doc, getDocFromServer, setDoc } from "firebase/firestore";
+import { doc, getDocFromServer, setDoc, deleteDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "./firebase.js";
 
-const COLLECTION = "einsatzplan_shared_storage_test"; // TEST-Umgebung – eigene Sammlung, berührt NICHT die echten Vereinsdaten
+const COLLECTION = "einsatzplan_shared_storage_test";
 const TIMEOUT_MS = 8000;
 
 // Verhindert, dass ein hängendes Firestore-Promise die App für immer im
@@ -35,4 +35,67 @@ export async function setShared(key, value) {
   const ref = doc(db, COLLECTION, key);
   await withTimeout(setDoc(ref, { value, updatedAt: Date.now() }), "Speichern");
   return { key, value, shared: true };
+}
+
+// Read-only Brücke zur Vereinsverwaltungs-App: funktioniert nur, wenn beide
+// Apps im selben Firebase-Projekt laufen (dieselbe Datenbank, andere
+// Sammlung). Wird genutzt, um z. B. Vereinstermine im Einsatzplan
+// mit anzuzeigen, ohne die Vereinsverwaltung selbst zu verändern.
+const VEREINSVERWALTUNG_COLLECTION = "vereinsverwaltung_storage";
+
+export async function getFromVereinsverwaltung(key) {
+  if (!db) return null;
+  try {
+    const ref = doc(db, VEREINSVERWALTUNG_COLLECTION, key);
+    const snap = await withTimeout(getDocFromServer(ref), "Laden (Vereinsverwaltung)");
+    if (!snap.exists()) return null;
+    return { key, value: snap.data().value };
+  } catch (e) {
+    // Kein Fehler werfen: Falls die Vereinsverwaltung (noch) nicht im
+    // gleichen Projekt läuft, soll der Einsatzplan trotzdem normal
+    // funktionieren - die Vereinstermine bleiben dann einfach leer.
+    return null;
+  }
+}
+
+// Schreibender Gegenpart - bewusst nur für die Rollen-Verwaltung gedacht
+// (Administratoren im Einsatzplan sollen Rechte vergeben können, ohne in
+// die Vereinsverwaltung wechseln zu müssen). Schreibt in dieselbe Sammlung,
+// die auch die Vereinsverwaltung nutzt - beide Apps sehen denselben Stand.
+export async function setToVereinsverwaltung(key, value) {
+  if (!db) throw new Error("Firebase ist nicht konfiguriert.");
+  const ref = doc(db, VEREINSVERWALTUNG_COLLECTION, key);
+  await withTimeout(setDoc(ref, { value, updatedAt: Date.now() }), "Speichern (Vereinsverwaltung)");
+  return { key, value };
+}
+
+// --- Rollen (echte Dokumente, ein Dokument pro E-Mail) - dieselbe Sammlung,
+// die auch die Vereinsverwaltung nutzt, damit Rollen zuverlässig geteilt sind
+// UND die Firestore-Sicherheitsregeln sie direkt prüfen können.
+const ROLES_COLLECTION = "vv_roles";
+
+export async function getAllVvRoles() {
+  if (!db) return {};
+  try {
+    const snap = await withTimeout(getDocs(collection(db, ROLES_COLLECTION)), "Rollen laden");
+    const map = {};
+    snap.forEach((d) => {
+      map[d.id] = d.data().roles || [];
+    });
+    return map;
+  } catch (e) {
+    return {};
+  }
+}
+
+export async function setVvUserRoles(email, roles) {
+  if (!db) throw new Error("Firebase ist nicht konfiguriert.");
+  const ref = doc(db, ROLES_COLLECTION, email);
+  await withTimeout(setDoc(ref, { roles, updatedAt: Date.now() }), "Rolle speichern");
+}
+
+export async function deleteVvUserRoles(email) {
+  if (!db) throw new Error("Firebase ist nicht konfiguriert.");
+  const ref = doc(db, ROLES_COLLECTION, email);
+  await withTimeout(deleteDoc(ref), "Rolle löschen");
 }
