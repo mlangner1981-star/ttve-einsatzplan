@@ -14,18 +14,9 @@ import {
   Navigation,
   Users,
   ClipboardList,
-  Package,
-  BarChart3,
-  FileText,
-  Settings,
   Building2,
   Inbox,
   FileDown,
-  CalendarClock,
-  Newspaper,
-  Phone,
-  Mail,
-  UserPlus,
   CalendarDays,
   CalendarPlus,
   Sun,
@@ -2965,7 +2956,7 @@ export default function Einsatzplan() {
                 ? "border-amber-500 dark:border-amber-600"
                 : "border-emerald-500 dark:border-emerald-600";
             return (
-              <div className={`rounded-xl bg-white dark:bg-stone-900 border-2 ${borderClass} p-4 shadow-sm`}>
+              <div className={`rounded-xl bg-white dark:bg-stone-900 border-2 ${borderClass} p-5 shadow-lg shadow-stone-200/60 dark:shadow-black/30`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Mein nächstes Spiel</span>
                   <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${COUNTDOWN_BADGE_CLASSES[urgency]}`}>{formatCountdown(myNext.match)}</span>
@@ -3067,7 +3058,7 @@ export default function Einsatzplan() {
         <div>
           <button
             onClick={() => setShowRoster((s) => !s)}
-            className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-gradient-to-r from-emerald-700 to-emerald-600 text-white"
+            className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-gradient-to-r from-teal-700 to-teal-600 text-white transition-transform active:scale-[0.98]"
           >
             <span className="flex items-center gap-2">
               <Users size={16} /> Kader ({team.players.length})
@@ -3075,14 +3066,14 @@ export default function Einsatzplan() {
             <ChevronDown size={16} className={showRoster ? "rotate-180" : ""} />
           </button>
           {showRoster && (
-            <div className="mt-2 rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 p-4">
+            <div className="mt-2 rounded-lg border border-teal-200 dark:border-teal-900 bg-teal-50 dark:bg-teal-950/30 p-4">
               <div className="flex flex-col gap-1.5">
                 {team.players
                   .map((p) => {
                     const isCaptain = captains[team.id] === p;
                     const ttr = ttrValues[p];
                     return (
-                      <div key={p} className="flex items-center justify-between text-sm py-1 border-b border-emerald-100 dark:border-emerald-900 last:border-0">
+                      <div key={p} className="flex items-center justify-between text-sm py-1 border-b border-teal-100 dark:border-teal-900 last:border-0">
                         <span className="flex items-center gap-1.5 text-stone-700 dark:text-stone-200">
                           {isCaptain && (
                             <span className="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0">C</span>
@@ -3090,7 +3081,7 @@ export default function Einsatzplan() {
                           {p}
                         </span>
                         {ttr && (ttr.ttr || ttr.qttr) ? (
-                          <span className="text-xs text-stone-500 dark:text-stone-400 font-semibold">
+                          <span className="text-xs text-teal-700 dark:text-teal-400 font-bold">
                             {ttr.ttr ?? "–"}{ttr.qttr ? ` / ${ttr.qttr}` : ""}
                           </span>
                         ) : (
@@ -3100,9 +3091,11 @@ export default function Einsatzplan() {
                     );
                   })}
               </div>
-              <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-2">
-                TTR / QTTR (falls hinterlegt), Reihenfolge wie in der Aufstellung.{" "}
-                {ttrUpdatedAt ? `Zuletzt aktualisiert: ${formatChangeTime(ttrUpdatedAt)} Uhr.` : ""}{" "}
+              <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-2.5">
+                TTR / QTTR (falls hinterlegt), Reihenfolge wie in der Aufstellung.
+                {ttrUpdatedAt && ` Zuletzt aktualisiert: ${formatChangeTime(ttrUpdatedAt)} Uhr.`}
+              </p>
+              <p className="text-[10px] text-teal-700 dark:text-teal-400 font-bold mt-1">
                 Neue Werte werden immer montags eingepflegt.
               </p>
             </div>
@@ -3121,7 +3114,7 @@ export default function Einsatzplan() {
               ? "border-amber-500 dark:border-amber-600"
               : "border-emerald-500 dark:border-emerald-600";
           return (
-            <div className={`rounded-xl bg-white dark:bg-stone-900 border-2 ${borderClass} p-4 shadow-sm`}>
+            <div className={`rounded-xl bg-white dark:bg-stone-900 border-2 ${borderClass} p-5 shadow-lg shadow-stone-200/60 dark:shadow-black/30`}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Nächstes Spiel</span>
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${COUNTDOWN_BADGE_CLASSES[urgency]}`}>{formatCountdown(dashboardMatch)}</span>
@@ -3862,13 +3855,13 @@ export default function Einsatzplan() {
                           <td key={key} className="px-1.5 py-2 text-center">
                             <button
                               onClick={() => togglePermission(role, key)}
-                              className={`w-6 h-6 rounded-md border-2 inline-flex items-center justify-center ${
+                              className={`w-7 h-7 rounded-md border-2 inline-flex items-center justify-center transition-all duration-150 active:scale-90 ${
                                 effectiveMatrix[role]?.[key]
-                                  ? "bg-violet-600 border-violet-600 text-white"
-                                  : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-600"
+                                  ? "bg-violet-600 border-violet-600 text-white scale-100"
+                                  : "bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-600 hover:border-violet-400"
                               }`}
                             >
-                              {effectiveMatrix[role]?.[key] && <Check size={13} />}
+                              {effectiveMatrix[role]?.[key] && <Check size={14} />}
                             </button>
                           </td>
                         ))}
