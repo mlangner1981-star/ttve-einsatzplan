@@ -76,16 +76,12 @@ const ROLES_COLLECTION = "vv_roles";
 
 export async function getAllVvRoles() {
   if (!db) return {};
-  try {
-    const snap = await withTimeout(getDocsFromServer(collection(db, ROLES_COLLECTION)), "Rollen laden");
-    const map = {};
-    snap.forEach((d) => {
-      map[d.id] = d.data().roles || [];
-    });
-    return map;
-  } catch (e) {
-    return {};
-  }
+  const snap = await withTimeout(getDocsFromServer(collection(db, ROLES_COLLECTION)), "Rollen laden");
+  const map = {};
+  snap.forEach((d) => {
+    map[d.id] = d.data().roles || [];
+  });
+  return map;
 }
 
 export async function setVvUserRoles(email, roles) {
