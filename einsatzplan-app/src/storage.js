@@ -27,7 +27,7 @@ export async function getShared(key) {
   // (veraltete) Version derselben Sitzung zu verwenden.
   const snap = await withTimeout(getDocFromServer(ref), "Laden");
   if (!snap.exists()) return null;
-  return { key, value: snap.data().value, shared: true };
+  return { key, value: snap.data().value, shared: true, updatedAt: snap.data().updatedAt || null };
 }
 
 export async function setShared(key, value) {

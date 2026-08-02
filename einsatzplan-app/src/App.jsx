@@ -1686,10 +1686,12 @@ export default function Einsatzplan() {
   // TTR/QTTR-Werte je Spielername - manuell gepflegt (kein automatischer
   // Abruf möglich, mytischtennis.de bietet keine offene Schnittstelle an).
   const [ttrValues, setTtrValues] = useState({});
+  const [ttrUpdatedAt, setTtrUpdatedAt] = useState(null);
   const loadTtrValues = useCallback(async () => {
     try {
       const res = await getShared(TTR_KEY);
       setTtrValues(res && res.value ? JSON.parse(res.value) : {});
+      setTtrUpdatedAt(res?.updatedAt || null);
     } catch (e) {
       setTtrValues({});
     }
@@ -1728,6 +1730,7 @@ export default function Einsatzplan() {
     setTtrValues(next);
     try {
       await setShared(TTR_KEY, JSON.stringify(next));
+      setTtrUpdatedAt(Date.now());
       logChange(authUser?.email, "TTR/QTTR", "-", `${imported} Werte importiert`);
       setTtrImportText("");
       showToast(`${imported} Spieler-Werte importiert.`);
@@ -3097,7 +3100,11 @@ export default function Einsatzplan() {
                     );
                   })}
               </div>
-              <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-2">TTR / QTTR (falls hinterlegt), Reihenfolge wie in der Aufstellung</p>
+              <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-2">
+                TTR / QTTR (falls hinterlegt), Reihenfolge wie in der Aufstellung.{" "}
+                {ttrUpdatedAt ? `Zuletzt aktualisiert: ${formatChangeTime(ttrUpdatedAt)} Uhr.` : ""}{" "}
+                Neue Werte werden immer montags eingepflegt.
+              </p>
             </div>
           )}
         </div>
