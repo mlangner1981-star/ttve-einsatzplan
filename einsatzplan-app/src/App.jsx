@@ -330,10 +330,7 @@ const TTR_KEY = "ttv-suechteln-vorst-ttr-werte"; // Name -> { ttr, qttr }
 const DEFAULT_PERMISSION_MATRIX = {
   Administrator: { einsatzplanAdmin: true, vvView: true, vvEdit: true, roleAdmin: true, scopeToOwnTeam: false },
   Vorstand: { einsatzplanAdmin: true, vvView: true, vvEdit: true, roleAdmin: false, scopeToOwnTeam: false },
-  Kassenwart: { einsatzplanAdmin: false, vvView: true, vvEdit: true, roleAdmin: false, scopeToOwnTeam: false },
-  Trainer: { einsatzplanAdmin: true, vvView: false, vvEdit: false, roleAdmin: false, scopeToOwnTeam: false },
   "Mannschaftsführer": { einsatzplanAdmin: true, vvView: false, vvEdit: false, roleAdmin: false, scopeToOwnTeam: true },
-  Mitglied: { einsatzplanAdmin: false, vvView: false, vvEdit: false, roleAdmin: false, scopeToOwnTeam: false },
   Sportwart: { einsatzplanAdmin: true, vvView: true, vvEdit: true, roleAdmin: false, scopeToOwnTeam: false },
 };
 const PERMISSION_MATRIX_KEY = "rechtematrix";
@@ -1321,7 +1318,7 @@ export default function Einsatzplan() {
   // seinen Rollen) mindestens eine mit "roleAdmin: true" hat, kommt hier rein.
   const isPureAdmin =
     !!authUser && (noRoleDataAvailable || myEinsatzplanRoles.some((r) => effectiveMatrix[r]?.roleAdmin));
-  const ROLE_OPTIONS = ["Administrator", "Vorstand", "Sportwart", "Kassenwart", "Trainer", "Mannschaftsführer", "Mitglied"];
+  const ROLE_OPTIONS = ["Administrator", "Vorstand", "Sportwart", "Mannschaftsführer"];
   const [roleEmailInput, setRoleEmailInput] = useState("");
   const [roleSelectInput, setRoleSelectInput] = useState(["Mannschaftsführer"]); // jetzt Array = Mehrfachauswahl
   const toggleRoleSelectInput = (role) => {
@@ -2449,8 +2446,8 @@ export default function Einsatzplan() {
                 </p>
                 <ul className="space-y-1 text-stone-600 dark:text-stone-300">
                   <li><strong>Administrator/Vorstand:</strong> voller Zugriff überall, inkl. Rollen &amp; Rechte vergeben</li>
-                  <li><strong>Mannschaftsführer/Trainer:</strong> Admin-Rechte, ggf. nur für die eigene(n) Mannschaft(en)</li>
-                  <li><strong>Sportwart/Kassenwart:</strong> je nach Einstellung in der Rechtematrix</li>
+                  <li><strong>Mannschaftsführer:</strong> Admin-Rechte, ggf. nur für die eigene(n) Mannschaft(en)</li>
+                  <li><strong>Sportwart:</strong> je nach Einstellung in der Rechtematrix</li>
                   <li>Passwort ändern/vergessen: über den Login-Bildschirm bzw. im Admin-Bereich oben</li>
                 </ul>
               </div>
