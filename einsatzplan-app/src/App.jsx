@@ -1223,6 +1223,14 @@ export default function Einsatzplan() {
   const [showSeasonReview, setShowSeasonReview] = useState(false);
   const [showVvEvents, setShowVvEvents] = useState(false);
   const [showRoster, setShowRoster] = useState(false);
+  const [showVvTasks, setShowVvTasks] = useState(false);
+  const [showVvInventory, setShowVvInventory] = useState(false);
+  const [showVvVolunteers, setShowVvVolunteers] = useState(false);
+  const [showVvSponsors, setShowVvSponsors] = useState(false);
+  const [showVvDocuments, setShowVvDocuments] = useState(false);
+  const [showVvBoard, setShowVvBoard] = useState(false);
+  const [showVvPolls, setShowVvPolls] = useState(false);
+  const [showVvStats, setShowVvStats] = useState(false);
   const [showVvNews, setShowVvNews] = useState(false);
   const [clubSearch, setClubSearch] = useState("");
 
