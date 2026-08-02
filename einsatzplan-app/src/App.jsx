@@ -2416,6 +2416,7 @@ export default function Einsatzplan() {
                   <li><strong>Kalender:</strong> „Kalender"-Button pro Spiel oder „.ics" für die ganze Runde</li>
                   <li><strong>WhatsApp:</strong> grüner Button teilt Termin + Zusagen fertig formatiert</li>
                   <li><strong>„C"-Abzeichen:</strong> markiert den Mannschaftsführer bei den Spieler-Kürzeln</li>
+                  <li><strong>Kader-Bereich:</strong> aufklappbar oberhalb von „Nächstes Spiel" – zeigt alle Spieler in Aufstellungsreihenfolge, mit TTR/QTTR-Wert (falls hinterlegt), auch ohne Login sichtbar</li>
                 </ul>
               </div>
 
@@ -2459,6 +2460,7 @@ export default function Einsatzplan() {
                 <ul className="space-y-1.5 text-stone-600 dark:text-stone-300">
                   <li><strong>Spieltag bearbeiten/löschen:</strong> Stift-Symbol bei jedem Spiel</li>
                   <li><strong>Kader verwalten:</strong> Spieler hinzufügen/entfernen, Mannschaftsführer („C") festlegen</li>
+                  <li><strong>TTR/QTTR-Werte:</strong> Liste einfügen und importieren (Format: „Name; TTR; QTTR", eine Zeile pro Spieler)</li>
                   <li><strong>Gesamtübersicht als PDF exportieren:</strong> druckfreundliche Liste aller Zusagen</li>
                   <li><strong>Rechtematrix</strong> (nur Administrator): legt fest, was jede Rolle darf</li>
                   <li><strong>Gefahrenzone:</strong> alle Rückmeldungen zurücksetzen (mit Sicherheitsabfrage)</li>
