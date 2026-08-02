@@ -1789,7 +1789,10 @@ export default function Einsatzplan() {
   const [ttrImportText, setTtrImportText] = useState("");
   const importTtrValues = async () => {
     const lines = ttrImportText.split("\n").map((l) => l.trim()).filter(Boolean);
-    if (lines.length === 0) return;
+    if (lines.length === 0) {
+      showToast("Bitte zuerst die Liste ins Textfeld einfügen.");
+      return;
+    }
     const next = { ...ttrValues };
     let imported = 0;
     lines.forEach((line) => {
@@ -1806,6 +1809,10 @@ export default function Einsatzplan() {
       };
       imported++;
     });
+    if (imported === 0) {
+      showToast('Keine gültige Zeile erkannt. Format: "Name; TTR; QTTR" (mit Semikolon oder Tab getrennt).');
+      return;
+    }
     setTtrValues(next);
     try {
       await setShared(TTR_KEY, JSON.stringify(next));
