@@ -14,6 +14,8 @@ import {
   Navigation,
   Users,
   ClipboardList,
+  Download,
+  Upload,
   Building2,
   Inbox,
   FileDown,
@@ -1611,6 +1613,142 @@ export default function Einsatzplan() {
   };
 
   const [resetAllLoading, setResetAllLoading] = useState(false);
+
+  // --- Backup: kompletter Export/Import aller Einsatzplan-Daten ---
+  const [backupBusy, setBackupBusy] = useState(false);
+
+  const exportBackup = async () => {
+    setBackupBusy(true);
+    try {
+      const backup = { createdAt: new Date().toISOString(), version: 1, teams: {}, singles: {} };
+
+      // Alle Mannschaften (fest eingebaute + selbst angelegte) x beide Runden
+      for (const t of allTeams) {
+        backup.teams[t.id] = {};
+        for (const r of ROUNDS) {
+          const key = `${t.id}-${r.id}`;
+          const [dataRes, matchesRes] = await Promise.all([
+            getShared(STORAGE_PREFIX + key),
+            getShared(MATCHES_PREFIX + key),
+          ]);
+          backup.teams[t.id][r.id] = {
+            data: dataRes && dataRes.value ? JSON.parse(dataRes.value) : null,
+            matches: matchesRes && matchesRes.value ? JSON.parse(matchesRes.value) : null,
+          };
+        }
+      }
+
+      // Einzelne, mannschaftsübergreifende Einstellungen
+      const singleKeys = {
+        customTeams: CUSTOM_TEAMS_KEY,
+        birthdays: BIRTHDAYS_KEY,
+        captains: CAPTAINS_KEY,
+        ttrValues: TTR_KEY,
+        permissionMatrix: PERMISSION_MATRIX_KEY,
+        roleTeamScope: ROLE_TEAM_SCOPE_KEY,
+      };
+      for (const [name, key] of Object.entries(singleKeys)) {
+        const res =
+          name === "permissionMatrix" || name === "roleTeamScope"
+            ? await getFromVereinsverwaltung(key)
+            : await getShared(key);
+        backup.singles[name] = res && res.value ? JSON.parse(res.value) : null;
+      }
+
+      // Rollen (echte Dokumente, nicht Text-Blob)
+      backup.singles.roles = await getAllVvRoles();
+
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const dateStr = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `einsatzplan-backup-${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      logChange(authUser?.email, "Backup", "-", "Backup exportiert");
+      showToast("Backup heruntergeladen.");
+    } catch (e) {
+      showToast(`Export fehlgeschlagen: ${e?.message || "unbekannter Fehler"}`);
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const [restoreFile, setRestoreFile] = useState(null);
+  const [restorePreview, setRestorePreview] = useState(null);
+
+  const handleRestoreFileSelected = async (file) => {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!parsed || !parsed.teams || !parsed.singles) {
+        showToast("Diese Datei sieht nicht wie ein gültiges Backup aus.");
+        return;
+      }
+      setRestoreFile(parsed);
+      setRestorePreview({
+        createdAt: parsed.createdAt,
+        teamCount: Object.keys(parsed.teams).length,
+        roleCount: Object.keys(parsed.singles.roles || {}).length,
+      });
+    } catch (e) {
+      showToast(`Datei konnte nicht gelesen werden: ${e?.message || "unbekanntes Format"}`);
+    }
+  };
+
+  const runRestore = async () => {
+    if (!restoreFile) return;
+    askConfirm(
+      `Backup vom ${restorePreview?.createdAt ? new Date(restorePreview.createdAt).toLocaleString("de-DE") : "unbekannten Zeitpunkt"} wirklich einspielen? Das ÜBERSCHREIBT alle aktuellen Zusagen, Kader, Rollen und Einstellungen mit dem Stand aus der Datei. Nicht rückgängig zu machen (außer mit einem neueren Backup).`,
+      async () => {
+        setBackupBusy(true);
+        try {
+          const backup = restoreFile;
+          for (const [teamId, rounds] of Object.entries(backup.teams || {})) {
+            for (const [roundId, payload] of Object.entries(rounds)) {
+              const key = `${teamId}-${roundId}`;
+              if (payload.data) await setShared(STORAGE_PREFIX + key, JSON.stringify(payload.data));
+              if (payload.matches) await setShared(MATCHES_PREFIX + key, JSON.stringify(payload.matches));
+            }
+          }
+          const singleKeys = {
+            customTeams: CUSTOM_TEAMS_KEY,
+            birthdays: BIRTHDAYS_KEY,
+            captains: CAPTAINS_KEY,
+            ttrValues: TTR_KEY,
+            permissionMatrix: PERMISSION_MATRIX_KEY,
+            roleTeamScope: ROLE_TEAM_SCOPE_KEY,
+          };
+          for (const [name, key] of Object.entries(singleKeys)) {
+            const value = backup.singles?.[name];
+            if (value === undefined || value === null) continue;
+            if (name === "permissionMatrix" || name === "roleTeamScope") {
+              await setToVereinsverwaltung(key, JSON.stringify(value));
+            } else {
+              await setShared(key, JSON.stringify(value));
+            }
+          }
+          const roles = backup.singles?.roles || {};
+          for (const [email, roleList] of Object.entries(roles)) {
+            await setVvUserRoles(email, roleList);
+          }
+          logChange(authUser?.email, "Backup", "-", "Backup eingespielt (wiederhergestellt)");
+          showToast("Backup eingespielt. Seite wird neu geladen …");
+          setRestoreFile(null);
+          setRestorePreview(null);
+          setTimeout(() => window.location.reload(), 1200);
+        } catch (e) {
+          showToast(`Wiederherstellen fehlgeschlagen: ${e?.message || "unbekannter Fehler"}`);
+        } finally {
+          setBackupBusy(false);
+        }
+      }
+    );
+  };
 
   // --- Konfetti ---
   const [confettiKey, setConfettiKey] = useState(0);
@@ -4173,6 +4311,57 @@ export default function Einsatzplan() {
               </div>
             )}
           </div>
+          )}
+
+          {/* Backup: Export/Import - nur Administrator, bewusst vor der Gefahrenzone */}
+          {isPureAdmin && (
+            <div className="rounded-lg border-2 border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 p-5 mt-3">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-sky-800 dark:text-sky-400 uppercase tracking-wide mb-1.5">
+                <Download size={13} /> Backup
+              </div>
+              <p className="text-[11px] text-sky-700 dark:text-sky-400 mb-3">
+                Sichert alle Mannschaften, Zusagen, Kader, Rollen und Einstellungen als Datei. Empfehlung: vor
+                größeren Änderungen einmal herunterladen.
+              </p>
+              <button
+                onClick={exportBackup}
+                disabled={backupBusy}
+                className="w-full flex items-center justify-center gap-2 text-sm font-bold py-2.5 rounded-lg bg-sky-700 hover:bg-sky-800 text-white disabled:opacity-60 mb-3"
+              >
+                {backupBusy ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                Backup jetzt herunterladen
+              </button>
+
+              <div className="border-t border-sky-200 dark:border-sky-900 pt-3">
+                <p className="text-[11px] text-sky-700 dark:text-sky-400 mb-2">
+                  Backup einspielen (überschreibt den aktuellen Stand komplett):
+                </p>
+                <label className="flex items-center justify-center gap-2 text-xs font-bold py-2.5 rounded-lg border-2 border-dashed border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-400 cursor-pointer">
+                  <Upload size={14} /> Backup-Datei auswählen
+                  <input
+                    type="file"
+                    accept="application/json"
+                    className="hidden"
+                    onChange={(e) => handleRestoreFileSelected(e.target.files?.[0])}
+                  />
+                </label>
+                {restorePreview && (
+                  <div className="mt-2.5 bg-white dark:bg-stone-900 rounded-lg p-3 text-xs text-stone-600 dark:text-stone-300">
+                    <div>
+                      Erstellt: <strong>{restorePreview.createdAt ? new Date(restorePreview.createdAt).toLocaleString("de-DE") : "unbekannt"}</strong>
+                    </div>
+                    <div>{restorePreview.teamCount} Mannschaften, {restorePreview.roleCount} Rollen enthalten</div>
+                    <button
+                      onClick={runRestore}
+                      disabled={backupBusy}
+                      className="w-full mt-2.5 text-xs font-bold py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white disabled:opacity-60"
+                    >
+                      {backupBusy ? "Wird eingespielt …" : "Dieses Backup jetzt einspielen (überschreibt alles)"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
           {/* Gefahrenzone - bewusst ganz unten */}
