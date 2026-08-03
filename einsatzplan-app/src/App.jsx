@@ -1214,6 +1214,46 @@ export default function Einsatzplan() {
   const [showRoster, setShowRoster] = useState(false);
   const [clubSearch, setClubSearch] = useState("");
 
+  // Für die Einsatz-Anzahl im Kader-Bereich brauchen wir die Daten BEIDER
+  // Runden dieser Mannschaft - die aktuell nicht angezeigte Runde wird dafür
+  // separat nachgeladen (die angezeigte Runde ist ja schon in "data"/"matches").
+  const otherRound = round === "hin" ? "rueck" : "hin";
+  const [otherRoundData, setOtherRoundData] = useState(null);
+  const [otherRoundMatches, setOtherRoundMatches] = useState(null);
+  useEffect(() => {
+    if (view !== "cards") return;
+    let cancelled = false;
+    const key = `${teamId}-${otherRound}`;
+    Promise.all([getShared(STORAGE_PREFIX + key), getShared(MATCHES_PREFIX + key)]).then(([dRes, mRes]) => {
+      if (cancelled) return;
+      setOtherRoundData(dRes && dRes.value ? JSON.parse(dRes.value) : {});
+      setOtherRoundMatches(mRes && mRes.value ? JSON.parse(mRes.value) : []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [view, teamId, otherRound]);
+
+  const teamGameCounts = useMemo(() => {
+    const counts = {};
+    let totalGames = 0;
+    const rounds = [
+      { data, matches },
+      { data: otherRoundData || {}, matches: otherRoundMatches || [] },
+    ];
+    rounds.forEach(({ data: rData, matches: rMatches }) => {
+      (rMatches || []).forEach((m) => {
+        if (!m.date) return;
+        totalGames++;
+        const avail = rData[m.id]?.availability || {};
+        team.players.forEach((p) => {
+          if (avail[p] === "yes") counts[p] = (counts[p] || 0) + 1;
+        });
+      });
+    });
+    return { counts, totalGames };
+  }, [data, matches, otherRoundData, otherRoundMatches, team.players]);
+
   const filteredClubByDate = useMemo(() => {
     const q = clubSearch.trim().toLowerCase();
     if (!q) return clubByDate;
@@ -3196,7 +3236,9 @@ export default function Einsatzplan() {
         <div>
           <button
             onClick={() => setShowRoster((s) => !s)}
-            className="w-full flex items-center justify-between text-sm font-bold px-4 py-3 rounded-lg bg-gradient-to-r from-teal-700 to-teal-600 text-white transition-transform active:scale-[0.98]"
+            className={`w-full flex items-center justify-between text-sm font-bold px-4 py-3 bg-gradient-to-r from-teal-700 to-teal-600 text-white transition-transform active:scale-[0.98] ${
+              showRoster ? "rounded-t-lg" : "rounded-lg"
+            }`}
           >
             <span className="flex items-center gap-2">
               <Users size={16} /> Kader ({team.players.length})
@@ -3204,33 +3246,56 @@ export default function Einsatzplan() {
             <ChevronDown size={16} className={showRoster ? "rotate-180" : ""} />
           </button>
           {showRoster && (
-            <div className="mt-2 rounded-lg border border-teal-200 dark:border-teal-900 bg-teal-50 dark:bg-teal-950/30 p-4">
-              <div className="flex flex-col gap-1.5">
-                {team.players
-                  .map((p) => {
-                    const isCaptain = captains[team.id] === p;
-                    const ttr = ttrValues[p];
-                    return (
-                      <div key={p} className="flex items-center justify-between text-sm py-1 border-b border-teal-100 dark:border-teal-900 last:border-0">
-                        <span className="flex items-center gap-1.5 text-stone-700 dark:text-stone-200">
-                          {isCaptain && (
-                            <span className="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0">C</span>
-                          )}
-                          {p}
-                        </span>
-                        {ttr && (ttr.ttr || ttr.qttr) ? (
-                          <span className="text-xs text-teal-700 dark:text-teal-400 font-bold">
-                            {ttr.ttr ?? "–"}{ttr.qttr ? ` / ${ttr.qttr}` : ""}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-stone-300 dark:text-stone-600">–</span>
-                        )}
-                      </div>
-                    );
-                  })}
+            <div className="mt-0 rounded-b-lg border border-t-0 border-teal-200 dark:border-teal-900 bg-white dark:bg-stone-900 px-3.5 pb-3.5 pt-1 shadow-sm shadow-teal-900/5">
+              <div className="grid grid-cols-[1fr_60px_92px] items-center py-2.5 border-b-2 border-teal-100 dark:border-teal-900 text-[9px] font-extrabold uppercase tracking-wide text-teal-600 dark:text-teal-400">
+                <span>Name</span>
+                <span className="text-right">TTR/QTTR</span>
+                <span className="text-right">Zugesagt</span>
               </div>
+              {team.players.map((p, idx) => {
+                const isCaptain = captains[team.id] === p;
+                const ttr = ttrValues[p];
+                const played = teamGameCounts.counts[p] || 0;
+                const total = teamGameCounts.totalGames;
+                const pct = total > 0 ? Math.round((played / total) * 100) : 0;
+                return (
+                  <div
+                    key={p}
+                    className={`grid grid-cols-[1fr_60px_92px] items-center py-2 border-b border-teal-50 dark:border-teal-950 last:border-0 ${
+                      idx % 2 === 1 ? "bg-teal-50/40 dark:bg-teal-950/20 -mx-1.5 px-1.5" : ""
+                    }`}
+                  >
+                    <span className={`flex items-center gap-1.5 text-sm text-stone-800 dark:text-stone-100 ${isCaptain ? "font-bold" : "font-medium"}`}>
+                      {isCaptain && (
+                        <span className="w-4 h-4 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0 shadow-sm shadow-amber-900/30">
+                          C
+                        </span>
+                      )}
+                      {p}
+                    </span>
+                    <span className="text-right text-xs font-bold text-teal-700 dark:text-teal-400">
+                      {ttr && (ttr.ttr || ttr.qttr) ? (
+                        <>
+                          {ttr.ttr ?? "–"}
+                          {ttr.qttr && <span className="text-teal-400 dark:text-teal-600 font-medium"> /{ttr.qttr}</span>}
+                        </>
+                      ) : (
+                        <span className="text-stone-300 dark:text-stone-600 font-normal">–</span>
+                      )}
+                    </span>
+                    <span className="flex flex-col items-end gap-1">
+                      <span className="text-[11px] font-bold text-stone-600 dark:text-stone-300 whitespace-nowrap">
+                        {played} / {total} <span className={pct >= 40 ? "text-teal-600 dark:text-teal-400" : "text-stone-400 dark:text-stone-500"}>({pct}%)</span>
+                      </span>
+                      <span className="w-16 h-1 rounded-full bg-stone-100 dark:bg-stone-800 overflow-hidden">
+                        <span className="block h-full rounded-full bg-gradient-to-r from-teal-400 to-teal-600" style={{ width: `${pct}%` }} />
+                      </span>
+                    </span>
+                  </div>
+                );
+              })}
               <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-2.5">
-                TTR / QTTR (falls hinterlegt), Reihenfolge wie in der Aufstellung.
+                Reihenfolge wie in der Aufstellung.
                 {ttrUpdatedAt && ` Zuletzt aktualisiert: ${formatChangeTime(ttrUpdatedAt)} Uhr.`}
               </p>
               <p className="text-[10px] text-teal-700 dark:text-teal-400 font-bold mt-1">
