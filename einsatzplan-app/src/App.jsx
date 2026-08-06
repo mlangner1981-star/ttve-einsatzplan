@@ -3249,7 +3249,7 @@ export default function Einsatzplan() {
             <div className="mt-0 rounded-b-lg border border-t-0 border-teal-200 dark:border-teal-900 bg-white dark:bg-stone-900 px-3.5 pb-3.5 pt-1 shadow-sm shadow-teal-900/5">
               <div className="grid grid-cols-[1fr_60px_92px] items-center py-2.5 border-b-2 border-teal-100 dark:border-teal-900 text-[9px] font-extrabold uppercase tracking-wide text-teal-600 dark:text-teal-400">
                 <span>Name</span>
-                <span className="text-right">TTR/QTTR</span>
+                <span className="text-right">TTR</span>
                 <span className="text-right">Zugesagt</span>
               </div>
               {team.players.map((p, idx) => {
@@ -3274,14 +3274,7 @@ export default function Einsatzplan() {
                       {p}
                     </span>
                     <span className="text-right text-xs font-bold text-teal-700 dark:text-teal-400">
-                      {ttr && (ttr.ttr || ttr.qttr) ? (
-                        <>
-                          {ttr.ttr ?? "–"}
-                          {ttr.qttr && <span className="text-teal-400 dark:text-teal-600 font-medium"> /{ttr.qttr}</span>}
-                        </>
-                      ) : (
-                        <span className="text-stone-300 dark:text-stone-600 font-normal">–</span>
-                      )}
+                      {ttr && ttr.ttr ? ttr.ttr : <span className="text-stone-300 dark:text-stone-600 font-normal">–</span>}
                     </span>
                     <span className="flex flex-col items-end gap-1">
                       <span className="text-[11px] font-bold text-stone-600 dark:text-stone-300 whitespace-nowrap">
@@ -3796,27 +3789,50 @@ export default function Einsatzplan() {
               Noch keine Spiele für die {ROUNDS.find((r) => r.id === round).label} eingetragen.
             </div>
           ) : (
-          <div className="bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-800 divide-y divide-stone-100 dark:divide-stone-800">
+          <div className="flex flex-col gap-2">
             {matches.map((m, idx) => {
               const entry = data[m.id] || { availability: {}, notiz: "", ersatzSpieler: [], fotos: [] };
               const avail = entry.availability || {};
               const s = computeMatchStatus(team.players, avail, team.requiredPlayers, entry.ersatzSpieler);
               const fest = s.confirmedCount;
+              const accentClass = s.warning
+                ? "border-l-red-500 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900"
+                : s.filled
+                ? "border-l-emerald-500 bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-800"
+                : "border-l-amber-400 bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-800";
 
               return (
-                <div key={m.id} className="px-4 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-xs text-stone-400 dark:text-stone-500 font-bold">
-                        #{idx + 1} · {m.weekday} {m.date} · {m.time}
-                      </div>
-                      <div className="text-sm font-semibold text-stone-800 dark:text-stone-100 truncate">
-                        {m.opponent}
-                      </div>
-                      <div className="text-[11px] text-stone-400 dark:text-stone-500 uppercase tracking-wide flex items-center gap-1">
-                        {m.home ? <Home size={10} /> : <MapPin size={10} />}
-                        {m.home ? "Heim" : "Auswärts"}
-                      </div>
+                <div key={m.id} className={`rounded-lg border border-l-4 px-3.5 py-3 ${accentClass}`}>
+                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                    <span className="text-[10px] text-stone-400 dark:text-stone-500 font-bold">#{idx + 1}</span>
+                    <span className="text-[10px] text-stone-400 dark:text-stone-500 font-mono">{m.weekday} {m.date} · {m.time}</span>
+                    <span
+                      className={`text-[9.5px] font-extrabold px-1.5 py-0.5 rounded uppercase ${
+                        m.home
+                          ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400"
+                          : "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400"
+                      }`}
+                    >
+                      {m.home ? "Heim" : "Ausw."}
+                    </span>
+                  </div>
+                  <div className="text-sm font-semibold text-stone-800 dark:text-stone-100 truncate mb-1.5">
+                    vs. {m.opponent}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      {s.no.length > 0 && (
+                        <div className="text-[11px] text-red-600 dark:text-red-400 font-semibold truncate">
+                          Abgesagt: {s.no.join(", ")}
+                        </div>
+                      )}
+                      {s.unsicher.length > 0 && (
+                        <div className="text-[11px] text-amber-600 dark:text-amber-400 truncate">Unsicher: {s.unsicher.join(", ")}</div>
+                      )}
+                      {s.open.length > 0 && (
+                        <div className="text-[11px] text-stone-400 dark:text-stone-500 truncate">Offen: {s.open.join(", ")}</div>
+                      )}
                     </div>
                     <span
                       className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
@@ -3835,30 +3851,14 @@ export default function Einsatzplan() {
                     </span>
                   </div>
 
-                  {(s.no.length > 0 || s.unsicher.length > 0 || s.open.length > 0) && (
-                    <div className="mt-1.5 text-xs flex flex-wrap gap-x-3 gap-y-0.5">
-                      {s.no.length > 0 && (
-                        <span className="text-red-600 dark:text-red-400 font-semibold">
-                          Abgesagt: {s.no.join(", ")}
-                        </span>
-                      )}
-                      {s.unsicher.length > 0 && (
-                        <span className="text-amber-600 dark:text-amber-400">Unsicher: {s.unsicher.join(", ")}</span>
-                      )}
-                      {s.open.length > 0 && (
-                        <span className="text-stone-400 dark:text-stone-500">Offen: {s.open.join(", ")}</span>
-                      )}
-                    </div>
-                  )}
-
                   {(entry.ersatzSpieler || []).length > 0 && (
-                    <div className="mt-1.5 text-xs text-violet-700 dark:text-violet-400">
+                    <div className="mt-1.5 text-[11px] text-violet-700 dark:text-violet-400">
                       🟣 Ersatz: {entry.ersatzSpieler.join(", ")}
                     </div>
                   )}
 
                   {entry.notiz && (
-                    <div className="mt-1.5 text-xs text-stone-500 dark:text-stone-400 italic">📝 {entry.notiz}</div>
+                    <div className="mt-1.5 text-[11px] text-stone-500 dark:text-stone-400 italic">📝 {entry.notiz}</div>
                   )}
                 </div>
               );
